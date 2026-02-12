@@ -1,75 +1,70 @@
 {
-  "countryCode": "LU",
-  "countryName": "Luxembourg",
-  "currency": "EUR",
-  "effectiveDate": "2026-01-01",
-  "version": "1.0.0",
-  "co2TaxBrackets": [
-    {
-      "minTonnes": 0,
-      "maxTonnes": 500,
-      "ratePerTonne": 45,
-      "description": "Bracket 1: small emitters (0–500t)"
-    },
-    {
-      "minTonnes": 500,
-      "maxTonnes": 5000,
-      "ratePerTonne": 65,
-      "description": "Bracket 2: medium emitters (500–5,000t)"
-    },
-    {
-      "minTonnes": 5000,
-      "maxTonnes": 25000,
-      "ratePerTonne": 85,
-      "description": "Bracket 3: large emitters (5,000–25,000t)"
-    },
-    {
-      "minTonnes": 25000,
-      "maxTonnes": null,
-      "ratePerTonne": 120,
-      "description": "Bracket 4: heavy industry (25,000t+)"
-    }
-  ],
-  "subsidies": [
-    {
-      "code": "LU-KLIMABONUS-2026",
-      "name": "Klimabonus",
-      "maxAmount": 50000,
-      "conditions": [
-        {
-          "field": "renewableEnergyPercent",
-          "operator": "gte",
-          "value": 50
-        }
+  "metadata": {
+    "countryCode": "LU",
+    "countryName": "Luxembourg",
+    "fiscalYear": 2026,
+    "currency": "EUR",
+    "lastUpdated": "2026-02-12"
+  },
+  "taxRules": {
+    "carbonTax": {
+      "unit": "ton_CO2",
+      "pricePerUnit": 45.00,
+      "brackets": [
+        { "minTonnes": 0, "maxTonnes": 500, "ratePerTonne": 45, "description": "Petits émetteurs (0-500t)" },
+        { "minTonnes": 500, "maxTonnes": 5000, "ratePerTonne": 65, "description": "Émetteurs moyens (500-5 000t)" },
+        { "minTonnes": 5000, "maxTonnes": 25000, "ratePerTonne": 85, "description": "Grands émetteurs (5 000-25 000t)" },
+        { "minTonnes": 25000, "maxTonnes": null, "ratePerTonne": 120, "description": "Industrie lourde (25 000t+)" }
       ],
-      "description": "Climate bonus for organizations with ≥50% renewable energy usage. Base €10,000 + €800 per percentage point above threshold."
+      "description": "Taxe carbone sur les énergies fossiles (Mazout, Gaz, Diesel)"
     },
-    {
-      "code": "LU-FIT4-SUSTAIN-2026",
-      "name": "Fit 4 Sustainability",
-      "maxAmount": 150000,
-      "conditions": [
-        {
-          "field": "employeeCount",
-          "operator": "lte",
-          "value": 250
-        },
-        {
-          "field": "revenue",
-          "operator": "lte",
-          "value": 50000000
-        }
-      ],
-      "description": "Government subsidy for SMEs investing in sustainable practices. Base €25,000 + €500 per employee."
+    "corporateTax": {
+      "standardRate": 0.17,
+      "municipalBusinessTax": 0.0675,
+      "contributionEmploymentFund": 0.07
     }
-  ],
-  "thresholds": {
-    "klimabonusRenewableMinPercent": 50,
-    "klimabonusBaseAmount": 10000,
-    "klimabonusBonusPerPercent": 800,
-    "fit4MaxEmployees": 250,
-    "fit4RevenueCapEur": 50000000,
-    "fit4BaseSubsidy": 25000,
-    "fit4PerEmployeeBonus": 500
+  },
+  "subsidies": {
+    "klimabonus_solar": {
+      "id": "KB_PV_2026",
+      "label": "Klimabonus Photovoltaïque",
+      "maxGrant": 10000,
+      "ratePerKWp": 800,
+      "conditions": {
+        "selfConsumptionMin": 0.50,
+        "maxCapacityKWp": 30
+      }
+    },
+    "klimabonus_mobility": {
+      "id": "KB_EV_2026",
+      "label": "Prime Véhicule Électrique",
+      "grants": [
+        { "condition": "cons <= 16kWh/100km", "amount": 6000 },
+        { "condition": "16 < cons <= 18kWh/100km", "amount": 3000 }
+      ],
+      "wallbox": {
+        "maxGrant": 1200,
+        "smartChargingBonus": 450
+      }
+    },
+    "fit4sustainability": {
+      "id": "F4S_2026",
+      "label": "Fit 4 Sustainability (Audit & Conseil)",
+      "rates": {
+        "SMALL_ENTERPRISE": 0.80,
+        "MEDIUM_ENTERPRISE": 0.60,
+        "LARGE_ENTERPRISE": 0.50
+      },
+      "maxExpenseEligible": {
+        "SMALL_ENTERPRISE": 50000,
+        "MEDIUM_ENTERPRISE": 100000,
+        "LARGE_ENTERPRISE": 200000
+      }
+    }
+  },
+  "energyRates": {
+    "feedInTariff": 0.1252,
+    "gridElectricityAvg": 0.22,
+    "dieselAvg": 1.55
   }
 }
