@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Multi-tenant core ────────────────────────────────────────────────
+
+model Organization {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(255)
+  countryCode String   @db.Char(2) @map("country_code")
+  vatNumber   String?  @db.VarChar(50) @map("vat_number")
+  sector      String?  @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  country      Country        @relation(fields: [countryCode], references: [code])
+  users        User[]
+  calculations Calculation[]
+
+  @@index([countryCode])
+  @@map("organizations")
+}
+
+model User {
+  id             String   @id @default(uuid()) @db.Uuid
+  clerkId        String   @unique @map("clerk_id") @db.VarChar(255)
+  email          String   @unique @db.VarChar(255)
+  firstName      String?  @db.VarChar(100) @map("first_name")
+  lastName       String?  @db.VarChar(100) @map("last_name")
+  role           UserRole @default(MEMBER)
+  organizationId String   @db.Uuid @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([clerkId])
+  @@map("users")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+// ─── Country / Jurisdiction ───────────────────────────────────────────
+
+model Country {
+  code          String   @id @db.Char(2) // ISO 3166-1 alpha-2
+  name          String   @db.VarChar(100)
+  currency      String   @db.Char(3) // ISO 4217
+  isActive      Boolean  @default(true) @map("is_active")
+  /// JSONB: full tax rules schema loaded from /data/schemas
+  taxRules      Json?    @map("tax_rules") @db.JsonB
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  organizations Organization[]
+  calculations  Calculation[]
+
+  @@map("countries")
+}
+
+// ─── Calculations ─────────────────────────────────────────────────────
+
+model Calculation {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid @map("organization_id")
+  countryCode    String   @db.Char(2) @map("country_code")
+  fiscalYear     Int      @map("fiscal_year")
+  /// JSONB: the full CalculationInput
+  input          Json     @db.JsonB
+  /// JSONB: the full CalculationResult
+  result         Json     @db.JsonB
+  netAmount      Decimal  @db.Decimal(15, 2) @map("net_amount")
+  currency       String   @db.Char(3)
+  engineVersion  String   @db.VarChar(20) @map("engine_version")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  country      Country      @relation(fields: [countryCode], references: [code])
+
+  @@index([organizationId])
+  @@index([countryCode, fiscalYear])
+  @@map("calculations")
+}

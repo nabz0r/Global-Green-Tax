@@ -1,0 +1,115 @@
+version: "3.9"
+
+services:
+  # ─── PostgreSQL ────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: ggt-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: global_green_tax
+      POSTGRES_USER: ggt_user
+      POSTGRES_PASSWORD: ggt_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ggt_user -d global_green_tax"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=false"
+
+  # ─── Redis (calculation cache) ─────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ggt-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=false"
+
+  # ─── Traefik (reverse proxy + SSL) ────────────────────────────────
+  traefik:
+    image: traefik:v3.1
+    container_name: ggt-traefik
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=admin@global-green-tax.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      # Redirect HTTP -> HTTPS
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Traefik dashboard (dev only)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_certs:/letsencrypt
+
+  # ─── API (NestJS) ─────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: ggt-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://ggt_user:ggt_password@postgres:5432/global_green_tax?schema=public
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      API_PORT: "4000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.global-green-tax.com`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.api.loadbalancer.server.port=4000"
+
+  # ─── Web (Next.js) ────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: ggt-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: https://api.global-green-tax.com
+      NODE_ENV: production
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web.rule=Host(`global-green-tax.com`)"
+      - "traefik.http.routers.web.entrypoints=websecure"
+      - "traefik.http.routers.web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web.loadbalancer.server.port=3000"
+
+volumes:
+  postgres_data:
+  redis_data:
+  traefik_certs:

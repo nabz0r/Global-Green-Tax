@@ -1,0 +1,40 @@
+{
+  "$comment": "Template: copy this file as {COUNTRY_CODE}-{YEAR}.json to add a new jurisdiction without modifying source code.",
+  "countryCode": "XX",
+  "countryName": "Country Name",
+  "currency": "EUR",
+  "effectiveDate": "2026-01-01",
+  "version": "1.0.0",
+  "co2TaxBrackets": [
+    {
+      "minTonnes": 0,
+      "maxTonnes": 1000,
+      "ratePerTonne": 30,
+      "description": "Bracket 1: description"
+    },
+    {
+      "minTonnes": 1000,
+      "maxTonnes": null,
+      "ratePerTonne": 60,
+      "description": "Bracket 2: description"
+    }
+  ],
+  "subsidies": [
+    {
+      "code": "XX-SUBSIDY-CODE",
+      "name": "Subsidy Name",
+      "maxAmount": 100000,
+      "conditions": [
+        {
+          "field": "renewableEnergyPercent",
+          "operator": "gte",
+          "value": 40
+        }
+      ],
+      "description": "Description of the subsidy, eligibility criteria, and calculation method."
+    }
+  ],
+  "thresholds": {
+    "exampleThreshold": 50
+  }
+}

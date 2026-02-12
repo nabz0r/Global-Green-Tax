@@ -1,0 +1,75 @@
+{
+  "countryCode": "LU",
+  "countryName": "Luxembourg",
+  "currency": "EUR",
+  "effectiveDate": "2026-01-01",
+  "version": "1.0.0",
+  "co2TaxBrackets": [
+    {
+      "minTonnes": 0,
+      "maxTonnes": 500,
+      "ratePerTonne": 45,
+      "description": "Bracket 1: small emitters (0–500t)"
+    },
+    {
+      "minTonnes": 500,
+      "maxTonnes": 5000,
+      "ratePerTonne": 65,
+      "description": "Bracket 2: medium emitters (500–5,000t)"
+    },
+    {
+      "minTonnes": 5000,
+      "maxTonnes": 25000,
+      "ratePerTonne": 85,
+      "description": "Bracket 3: large emitters (5,000–25,000t)"
+    },
+    {
+      "minTonnes": 25000,
+      "maxTonnes": null,
+      "ratePerTonne": 120,
+      "description": "Bracket 4: heavy industry (25,000t+)"
+    }
+  ],
+  "subsidies": [
+    {
+      "code": "LU-KLIMABONUS-2026",
+      "name": "Klimabonus",
+      "maxAmount": 50000,
+      "conditions": [
+        {
+          "field": "renewableEnergyPercent",
+          "operator": "gte",
+          "value": 50
+        }
+      ],
+      "description": "Climate bonus for organizations with ≥50% renewable energy usage. Base €10,000 + €800 per percentage point above threshold."
+    },
+    {
+      "code": "LU-FIT4-SUSTAIN-2026",
+      "name": "Fit 4 Sustainability",
+      "maxAmount": 150000,
+      "conditions": [
+        {
+          "field": "employeeCount",
+          "operator": "lte",
+          "value": 250
+        },
+        {
+          "field": "revenue",
+          "operator": "lte",
+          "value": 50000000
+        }
+      ],
+      "description": "Government subsidy for SMEs investing in sustainable practices. Base €25,000 + €500 per employee."
+    }
+  ],
+  "thresholds": {
+    "klimabonusRenewableMinPercent": 50,
+    "klimabonusBaseAmount": 10000,
+    "klimabonusBonusPerPercent": 800,
+    "fit4MaxEmployees": 250,
+    "fit4RevenueCapEur": 50000000,
+    "fit4BaseSubsidy": 25000,
+    "fit4PerEmployeeBonus": 500
+  }
+}
