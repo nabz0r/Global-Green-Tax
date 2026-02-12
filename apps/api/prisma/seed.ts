@@ -13,6 +13,68 @@ function loadSchema(code: string): any {
 async function main() {
   console.log('Seeding Global Green Tax database...\n');
 
+  // ─── Seed subscription plans ────────────────────────────────────
+  const plans = [
+    {
+      id: '00000000-0000-0000-0000-plan00000001',
+      name: 'STARTER',
+      displayName: 'Starter',
+      priceEuroCents: 9900,
+      maxSimulationsPerMonth: 5,
+      maxPdfExportsPerMonth: 5,
+      maxCountries: 1,
+      maxUsers: 2,
+      whiteLabel: false,
+      apiAccess: false,
+      ssoEnabled: false,
+    },
+    {
+      id: '00000000-0000-0000-0000-plan00000002',
+      name: 'PROFESSIONAL',
+      displayName: 'Professional',
+      priceEuroCents: 49900,
+      maxSimulationsPerMonth: null,
+      maxPdfExportsPerMonth: null,
+      maxCountries: null,
+      maxUsers: 10,
+      whiteLabel: true,
+      apiAccess: true,
+      ssoEnabled: false,
+    },
+    {
+      id: '00000000-0000-0000-0000-plan00000003',
+      name: 'ENTERPRISE',
+      displayName: 'Enterprise',
+      priceEuroCents: 0, // Custom pricing
+      maxSimulationsPerMonth: null,
+      maxPdfExportsPerMonth: null,
+      maxCountries: null,
+      maxUsers: null,
+      whiteLabel: true,
+      apiAccess: true,
+      ssoEnabled: true,
+    },
+  ];
+
+  for (const plan of plans) {
+    await prisma.plan.upsert({
+      where: { name: plan.name },
+      update: {
+        displayName: plan.displayName,
+        priceEuroCents: plan.priceEuroCents,
+        maxSimulationsPerMonth: plan.maxSimulationsPerMonth,
+        maxPdfExportsPerMonth: plan.maxPdfExportsPerMonth,
+        maxCountries: plan.maxCountries,
+        maxUsers: plan.maxUsers,
+        whiteLabel: plan.whiteLabel,
+        apiAccess: plan.apiAccess,
+        ssoEnabled: plan.ssoEnabled,
+      },
+      create: plan,
+    });
+    console.log(`  Plan: ${plan.displayName} (${plan.priceEuroCents / 100}€/mois) ✓`);
+  }
+
   // ─── Load all 6 country schemas ──────────────────────────────────
   const schemas: Record<string, any> = {};
   for (const code of ['LU', 'FR', 'DE', 'BE', 'ES', 'PT']) {
@@ -70,25 +132,33 @@ async function main() {
   }
 
   // ─── Seed demo organizations ──────────────────────────────────────
+  const starterPlanId = plans[0].id;
+  const proPlanId = plans[1].id;
+  const enterprisePlanId = plans[2].id;
+
   const orgs = [
-    { id: '00000000-0000-0000-0000-000000000001', name: 'GreenTech Luxembourg SARL', code: 'LU', vat: 'LU12345678', sector: 'Technology' },
-    { id: '00000000-0000-0000-0000-000000000002', name: 'ÉcoSolutions France SAS', code: 'FR', vat: 'FR12345678901', sector: 'Energy' },
-    { id: '00000000-0000-0000-0000-000000000003', name: 'GrünTech Deutschland GmbH', code: 'DE', vat: 'DE123456789', sector: 'Manufacturing' },
-    { id: '00000000-0000-0000-0000-000000000004', name: 'EcoVlaanderen NV', code: 'BE', vat: 'BE0123456789', sector: 'Logistics' },
-    { id: '00000000-0000-0000-0000-000000000005', name: 'SolEnergia España SL', code: 'ES', vat: 'ESB12345678', sector: 'Energy' },
-    { id: '00000000-0000-0000-0000-000000000006', name: 'VerdePortugal Lda', code: 'PT', vat: 'PT123456789', sector: 'Agriculture' },
+    { id: '00000000-0000-0000-0000-000000000001', name: 'GreenTech Luxembourg SARL', code: 'LU', vat: 'LU12345678', sector: 'Technology', planId: proPlanId },
+    { id: '00000000-0000-0000-0000-000000000002', name: 'ÉcoSolutions France SAS', code: 'FR', vat: 'FR12345678901', sector: 'Energy', planId: proPlanId },
+    { id: '00000000-0000-0000-0000-000000000003', name: 'GrünTech Deutschland GmbH', code: 'DE', vat: 'DE123456789', sector: 'Manufacturing', planId: enterprisePlanId },
+    { id: '00000000-0000-0000-0000-000000000004', name: 'EcoVlaanderen NV', code: 'BE', vat: 'BE0123456789', sector: 'Logistics', planId: starterPlanId },
+    { id: '00000000-0000-0000-0000-000000000005', name: 'SolEnergia España SL', code: 'ES', vat: 'ESB12345678', sector: 'Energy', planId: starterPlanId },
+    { id: '00000000-0000-0000-0000-000000000006', name: 'VerdePortugal Lda', code: 'PT', vat: 'PT123456789', sector: 'Agriculture', planId: starterPlanId },
   ];
 
   for (const org of orgs) {
     await prisma.organization.upsert({
       where: { id: org.id },
-      update: {},
+      update: { planId: org.planId },
       create: {
         id: org.id,
         name: org.name,
         countryCode: org.code,
         vatNumber: org.vat,
         sector: org.sector,
+        planId: org.planId,
+        simulationsUsedThisMonth: 0,
+        pdfExportsUsedThisMonth: 0,
+        currentPeriodStart: new Date(),
       },
     });
     console.log(`  Demo Org: ${org.name} ✓`);
@@ -273,7 +343,7 @@ async function main() {
     console.log(`  Sample Calculation (${calc.countryCode}) seeded ✓`);
   }
 
-  console.log('\nSeed complete. 6 countries, 6 orgs, 6 sample calculations.');
+  console.log('\nSeed complete. 3 plans, 6 countries, 6 orgs, 6 sample calculations.');
 }
 
 main()

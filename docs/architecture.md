@@ -3,11 +3,13 @@
 ## Table of Contents
 
 - [System Overview](#system-overview)
+- [Economic Model](#economic-model)
 - [Monorepo Structure](#monorepo-structure)
 - [Calculation Engine](#calculation-engine)
 - [Strategy Pattern](#strategy-pattern)
 - [Data Flow](#data-flow)
 - [Multi-Tenancy](#multi-tenancy)
+- [Subscription & Quota Management](#subscription--quota-management)
 - [Authentication & Authorization](#authentication--authorization)
 - [Caching Strategy](#caching-strategy)
 - [Client-Side Engine](#client-side-engine)
@@ -73,6 +75,146 @@ graph TB
     SVC --> PG
     SVC --> RD
 ```
+
+---
+
+## Economic Model
+
+Global Green Tax follows a **tiered SaaS subscription model** with three plans designed to capture value across the full spectrum of enterprise sizes.
+
+### Plan Comparison
+
+```mermaid
+graph TD
+    subgraph Starter["🟢 Starter — 99 €/mois"]
+        S1["Target: PME / SMEs"]
+        S2["1 juridiction"]
+        S3["5 simulations/mois"]
+        S4["5 exports PDF/mois"]
+        S5["2 utilisateurs"]
+        S6["Support email"]
+    end
+
+    subgraph Professional["🔵 Professional — 499 €/mois"]
+        P1["Target: Fiduciaires & Comptables"]
+        P2["Toutes juridictions"]
+        P3["Simulations illimitées"]
+        P4["Export PDF illimité"]
+        P5["10 utilisateurs"]
+        P6["White-label: PDF & portail"]
+        P7["API REST"]
+        P8["Support prioritaire + chat"]
+        P9["SLA 99.5%"]
+    end
+
+    subgraph Enterprise["🟡 Enterprise — Sur mesure"]
+        E1["Target: Grands groupes"]
+        E2["Toutes juridictions"]
+        E3["Simulations illimitées"]
+        E4["White-label complet"]
+        E5["API REST + Webhooks + SDK"]
+        E6["SSO SAML / OIDC"]
+        E7["Déploiement On-Premise"]
+        E8["Utilisateurs illimités"]
+        E9["CSM dédié"]
+        E10["SLA 99.9%"]
+    end
+
+    Starter -->|"Upsell: multi-pays, API"| Professional
+    Professional -->|"Upsell: SSO, on-prem"| Enterprise
+```
+
+### Detailed Feature Matrix
+
+| Feature | Starter (99 €/mois) | Professional (499 €/mois) | Enterprise (Custom) |
+|---------|---------------------|---------------------------|---------------------|
+| **Jurisdictions** | 1 pays | Tous les pays | Tous les pays |
+| **Simulations** | 5 / mois | Illimité | Illimité |
+| **Export PDF** | 5 / mois | Illimité | Illimité |
+| **Utilisateurs** | 2 sièges | 10 sièges | Illimité |
+| **White-label** | — | PDF & portail brandé | White-label complet |
+| **API Access** | — | REST API | REST + Webhooks + SDK |
+| **SSO** | — | — | SAML / OIDC |
+| **Support** | Email (48h) | Email + chat prioritaire | CSM dédié |
+| **SLA** | — | 99.5% uptime | 99.9% + SLA custom |
+| **Déploiement** | Cloud mutualisé | Cloud | Cloud / On-premise |
+| **Historique** | 3 mois | 24 mois | Illimité |
+| **Audit trail** | — | Logs d'accès | Logs complets + SIEM |
+
+### Subscription Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> TRIAL: Inscription
+    TRIAL --> STARTER: Souscription
+    TRIAL --> EXPIRED: 14 jours sans paiement
+    EXPIRED --> STARTER: Paiement tardif
+
+    STARTER --> PROFESSIONAL: Upgrade
+    STARTER --> CHURNED: Annulation
+
+    PROFESSIONAL --> ENTERPRISE: Upgrade
+    PROFESSIONAL --> STARTER: Downgrade
+    PROFESSIONAL --> CHURNED: Annulation
+
+    ENTERPRISE --> PROFESSIONAL: Downgrade
+    ENTERPRISE --> CHURNED: Annulation
+
+    CHURNED --> STARTER: Réactivation
+    CHURNED --> [*]
+```
+
+### Quota Enforcement Architecture
+
+The platform enforces subscription quotas via a `SubscriptionGuard` in the NestJS API pipeline:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant AuthGuard as ClerkAuthGuard
+    participant TenantGuard
+    participant SubGuard as SubscriptionGuard
+    participant SubService as SubscriptionService
+    participant DB as PostgreSQL
+    participant Controller
+
+    Client->>AuthGuard: Request + JWT
+    AuthGuard->>TenantGuard: userId verified
+    TenantGuard->>SubGuard: tenant context attached
+    SubGuard->>SubService: checkQuota(orgId, action)
+    SubService->>DB: SELECT plan, usage, period
+    DB-->>SubService: Plan limits + current usage
+
+    alt Within quota
+        SubService-->>SubGuard: ✅ Allowed
+        SubGuard->>Controller: Proceed
+        Controller-->>Client: 200 OK
+        SubService->>DB: INCREMENT usage counter
+    else Quota exceeded
+        SubService-->>SubGuard: ❌ Exceeded
+        SubGuard-->>Client: 402 Payment Required
+        Note over Client: { error, currentUsage, limit, upgradeUrl }
+    end
+```
+
+### Revenue Model
+
+```mermaid
+pie title Répartition MRR cible (Year 2)
+    "Starter (60% clients)" : 35
+    "Professional (30% clients)" : 45
+    "Enterprise (10% clients)" : 20
+```
+
+| Metric | Target |
+|--------|--------|
+| **MRR per Starter** | 99 € |
+| **MRR per Professional** | 499 € |
+| **ACV Enterprise** | 15 000 – 50 000 € |
+| **Taux de churn** | < 5% mensuel |
+| **Ratio LTV/CAC** | > 3:1 |
+| **Marge brute** | > 85% (pure SaaS) |
+| **Conversion trial → paid** | > 15% |
 
 ---
 
@@ -337,6 +479,70 @@ graph LR
     OWNER["OWNER<br/>Full access"] --> ADMIN["ADMIN<br/>Manage members"]
     ADMIN --> MEMBER["MEMBER<br/>Calculate + view"]
     MEMBER --> VIEWER["VIEWER<br/>View only"]
+```
+
+---
+
+## Subscription & Quota Management
+
+The `SubscriptionModule` manages plan assignments, usage tracking, and quota enforcement for all organizations.
+
+### Data Model
+
+```mermaid
+erDiagram
+    Plan ||--o{ Organization : "subscribed by"
+
+    Plan {
+        uuid id PK
+        string name UK "STARTER|PROFESSIONAL|ENTERPRISE"
+        int priceEuroCents "Monthly price in cents"
+        int maxSimulationsPerMonth "null = unlimited"
+        int maxPdfExportsPerMonth "null = unlimited"
+        int maxCountries "null = unlimited"
+        int maxUsers "null = unlimited"
+        boolean whiteLabel
+        boolean apiAccess
+        boolean ssoEnabled
+    }
+
+    Organization {
+        uuid id PK
+        string planId FK
+        int simulationsUsedThisMonth
+        int pdfExportsUsedThisMonth
+        datetime currentPeriodStart
+    }
+```
+
+### SubscriptionService API
+
+```typescript
+class SubscriptionService {
+  // Query
+  getOrganizationPlan(orgId: string): Promise<PlanWithUsage>
+
+  // Quota checks (called by guard)
+  checkSimulationQuota(orgId: string): Promise<QuotaCheckResult>
+  checkPdfExportQuota(orgId: string): Promise<QuotaCheckResult>
+
+  // Usage tracking (called after successful action)
+  incrementSimulationUsage(orgId: string): Promise<void>
+  incrementPdfExportUsage(orgId: string): Promise<void>
+
+  // Plan management
+  changePlan(orgId: string, planName: string): Promise<Organization>
+  resetMonthlyUsage(): Promise<void>  // CRON: 1st of each month
+}
+```
+
+### Quota Reset Flow
+
+```mermaid
+flowchart LR
+    CRON["CRON Job<br/>1er du mois, 00:00 UTC"] --> CHECK["Verify current period<br/>vs currentPeriodStart"]
+    CHECK --> RESET["Reset counters:<br/>simulationsUsed = 0<br/>pdfExportsUsed = 0"]
+    RESET --> UPDATE["Update<br/>currentPeriodStart"]
 ```
 
 ---

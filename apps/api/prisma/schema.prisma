@@ -7,23 +7,52 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Subscription Plans ──────────────────────────────────────────────
+
+model Plan {
+  id                      String   @id @default(uuid()) @db.Uuid
+  name                    String   @unique @db.VarChar(50)  // STARTER, PROFESSIONAL, ENTERPRISE
+  displayName             String   @db.VarChar(100) @map("display_name")
+  priceEuroCents          Int      @map("price_euro_cents")  // 9900 = 99€, 49900 = 499€
+  maxSimulationsPerMonth  Int?     @map("max_simulations_per_month")  // null = unlimited
+  maxPdfExportsPerMonth   Int?     @map("max_pdf_exports_per_month")  // null = unlimited
+  maxCountries            Int?     @map("max_countries")  // null = unlimited
+  maxUsers                Int?     @map("max_users")  // null = unlimited
+  whiteLabel              Boolean  @default(false) @map("white_label")
+  apiAccess               Boolean  @default(false) @map("api_access")
+  ssoEnabled              Boolean  @default(false) @map("sso_enabled")
+  isActive                Boolean  @default(true) @map("is_active")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  organizations Organization[]
+
+  @@map("plans")
+}
+
 // ─── Multi-tenant core ────────────────────────────────────────────────
 
 model Organization {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @db.VarChar(255)
-  countryCode String   @db.Char(2) @map("country_code")
-  vatNumber   String?  @db.VarChar(50) @map("vat_number")
-  sector      String?  @db.VarChar(100)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                        String    @id @default(uuid()) @db.Uuid
+  name                      String    @db.VarChar(255)
+  countryCode               String    @db.Char(2) @map("country_code")
+  vatNumber                 String?   @db.VarChar(50) @map("vat_number")
+  sector                    String?   @db.VarChar(100)
+  planId                    String?   @db.Uuid @map("plan_id")
+  simulationsUsedThisMonth  Int       @default(0) @map("simulations_used_this_month")
+  pdfExportsUsedThisMonth   Int       @default(0) @map("pdf_exports_used_this_month")
+  currentPeriodStart        DateTime  @default(now()) @map("current_period_start")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
 
   // Relations
   country      Country        @relation(fields: [countryCode], references: [code])
+  plan         Plan?          @relation(fields: [planId], references: [id])
   users        User[]
   calculations Calculation[]
 
   @@index([countryCode])
+  @@index([planId])
   @@map("organizations")
 }
 
