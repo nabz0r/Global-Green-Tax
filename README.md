@@ -463,6 +463,21 @@ The platform includes a protected admin interface at `/admin` accessible only to
 | **Top Investments** | Horizontal BarChart — most simulated investment types |
 | **Country Volume** | Progress bars — simulation volume by country |
 | **User Management** | Searchable DataTable with plan change dropdown per user |
+| **Deployment Wizard** | Multi-step wizard to generate docker-compose, .env, deploy scripts |
+
+### Deployment Wizard
+
+The `/admin/deploy` route provides a 5-step guided wizard for generating production-ready deployment configurations:
+
+| Step | Description |
+|------|-------------|
+| **1. Deployment Type** | Choose Cloud (AWS/GCP/Azure/Hetzner/OVH) or On-Premise |
+| **2. Infrastructure** | Domain, PostgreSQL, Redis, Traefik, backups, monitoring |
+| **3. Credentials** | Database passwords, Redis auth, Clerk API keys (client-side only) |
+| **4. Application** | Ports, environment, admin email, logging, Sentry |
+| **5. Generate** | Review & download docker-compose.yml, .env, deploy.sh, nginx.conf |
+
+All secrets stay in the browser — nothing is transmitted to the server.
 
 ### Admin API Endpoints
 

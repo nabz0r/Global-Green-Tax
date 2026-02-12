@@ -10,6 +10,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 const ADMIN_NAV = [
   { label: 'Dashboard', href: '/admin' },
   { label: 'Users', href: '/admin/users' },
+  { label: 'Deploy', href: '/admin/deploy' },
 ];
 
 export default function AdminLayout({

@@ -733,6 +733,30 @@ The `AdminService.getSummary()` aggregates data via 10 parallel queries:
 |------|-----------|----------|
 | **Dashboard** | `admin/page.tsx` | 4 KPI cards, AreaChart (30d trend), PieChart (plan distribution), BarChart (investment types), country progress bars |
 | **Users** | `admin/users/page.tsx` | Searchable DataTable, plan badge colors, role indicators, plan change dropdown per row |
+| **Deploy** | `admin/deploy/page.tsx` | 5-step wizard: type → infra → creds → app → generate. Produces docker-compose.yml, .env, deploy.sh, nginx.conf |
+
+### Deployment Wizard Architecture
+
+```mermaid
+flowchart TD
+    STEP1["Step 1: Deployment Type<br/>Cloud (AWS/GCP/Azure/Hetzner/OVH) or On-Prem"] --> STEP2["Step 2: Infrastructure<br/>Domain, PostgreSQL, Redis, Traefik, Backups, Monitoring"]
+    STEP2 --> STEP3["Step 3: Credentials<br/>DB password, Redis auth, Clerk keys"]
+    STEP3 --> STEP4["Step 4: Application<br/>Ports, env, admin email, logging, Sentry"]
+    STEP4 --> STEP5["Step 5: Review & Generate"]
+
+    STEP5 --> COMPOSE["docker-compose.yml"]
+    STEP5 --> ENV[".env"]
+    STEP5 --> SCRIPT["deploy.sh"]
+    STEP5 --> NGINX["nginx.conf (on-prem)"]
+
+    style STEP1 fill:#e8f5e9
+    style STEP2 fill:#e3f2fd
+    style STEP3 fill:#fff3e0
+    style STEP4 fill:#f3e5f5
+    style STEP5 fill:#fce4ec
+```
+
+All configuration and file generation happens **client-side only** — no secrets are ever transmitted to the server.
 
 ---
 
