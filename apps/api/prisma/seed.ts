@@ -16,6 +16,20 @@ async function main() {
   // ─── Seed subscription plans ────────────────────────────────────
   const plans = [
     {
+      id: '00000000-0000-0000-0000-plan00000000',
+      name: 'FREEMIUM',
+      displayName: 'Freemium',
+      priceEuroCents: 0,
+      maxSimulationsPerMonth: 3,
+      maxPdfExportsPerMonth: 0, // blocked
+      maxCountries: 1,
+      maxUsers: 1,
+      whiteLabel: false,
+      apiAccess: false,
+      ssoEnabled: false,
+      fiscalDeepDive: false,
+    },
+    {
       id: '00000000-0000-0000-0000-plan00000001',
       name: 'STARTER',
       displayName: 'Starter',
@@ -27,6 +41,7 @@ async function main() {
       whiteLabel: false,
       apiAccess: false,
       ssoEnabled: false,
+      fiscalDeepDive: false,
     },
     {
       id: '00000000-0000-0000-0000-plan00000002',
@@ -40,6 +55,7 @@ async function main() {
       whiteLabel: true,
       apiAccess: true,
       ssoEnabled: false,
+      fiscalDeepDive: true,
     },
     {
       id: '00000000-0000-0000-0000-plan00000003',
@@ -53,6 +69,7 @@ async function main() {
       whiteLabel: true,
       apiAccess: true,
       ssoEnabled: true,
+      fiscalDeepDive: true,
     },
   ];
 
@@ -69,6 +86,7 @@ async function main() {
         whiteLabel: plan.whiteLabel,
         apiAccess: plan.apiAccess,
         ssoEnabled: plan.ssoEnabled,
+        fiscalDeepDive: plan.fiscalDeepDive,
       },
       create: plan,
     });
@@ -132,9 +150,10 @@ async function main() {
   }
 
   // ─── Seed demo organizations ──────────────────────────────────────
-  const starterPlanId = plans[0].id;
-  const proPlanId = plans[1].id;
-  const enterprisePlanId = plans[2].id;
+  const freemiumPlanId = plans[0].id;
+  const starterPlanId = plans[1].id;
+  const proPlanId = plans[2].id;
+  const enterprisePlanId = plans[3].id;
 
   const orgs = [
     { id: '00000000-0000-0000-0000-000000000001', name: 'GreenTech Luxembourg SARL', code: 'LU', vat: 'LU12345678', sector: 'Technology', planId: proPlanId },
@@ -142,7 +161,7 @@ async function main() {
     { id: '00000000-0000-0000-0000-000000000003', name: 'GrünTech Deutschland GmbH', code: 'DE', vat: 'DE123456789', sector: 'Manufacturing', planId: enterprisePlanId },
     { id: '00000000-0000-0000-0000-000000000004', name: 'EcoVlaanderen NV', code: 'BE', vat: 'BE0123456789', sector: 'Logistics', planId: starterPlanId },
     { id: '00000000-0000-0000-0000-000000000005', name: 'SolEnergia España SL', code: 'ES', vat: 'ESB12345678', sector: 'Energy', planId: starterPlanId },
-    { id: '00000000-0000-0000-0000-000000000006', name: 'VerdePortugal Lda', code: 'PT', vat: 'PT123456789', sector: 'Agriculture', planId: starterPlanId },
+    { id: '00000000-0000-0000-0000-000000000006', name: 'VerdePortugal Lda', code: 'PT', vat: 'PT123456789', sector: 'Agriculture', planId: freemiumPlanId },
   ];
 
   for (const org of orgs) {
@@ -343,7 +362,55 @@ async function main() {
     console.log(`  Sample Calculation (${calc.countryCode}) seeded ✓`);
   }
 
-  console.log('\nSeed complete. 3 plans, 6 countries, 6 orgs, 6 sample calculations.');
+  // ─── Seed admin user ───────────────────────────────────────────────
+  await prisma.user.upsert({
+    where: { clerkId: 'user_admin_clerk_id' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000011',
+      clerkId: 'user_admin_clerk_id',
+      email: 'admin@global-green-tax.com',
+      firstName: 'Admin',
+      lastName: 'Platform',
+      role: 'ADMIN',
+      organizationId: orgs[0].id,
+    },
+  });
+  console.log('  Admin User: admin@global-green-tax.com (ADMIN) ✓');
+
+  // ─── Seed sample MarketAnalytic data ────────────────────────────
+  const investmentTypes = ['SOLAR', 'EV', 'AUDIT', 'ENERGY_EFFICIENCY'];
+  const sectors = ['Technology', 'Energy', 'Manufacturing', 'Logistics', 'Agriculture'];
+  const countries = ['LU', 'FR', 'DE', 'BE', 'ES', 'PT'];
+  let analyticsCount = 0;
+
+  for (let i = 0; i < 60; i++) {
+    const country = countries[i % countries.length];
+    const type = investmentTypes[i % investmentTypes.length];
+    const sector = sectors[i % sectors.length];
+    const daysAgo = Math.floor(Math.random() * 60);
+    const createdAt = new Date();
+    createdAt.setDate(createdAt.getDate() - daysAgo);
+
+    await prisma.marketAnalytic.create({
+      data: {
+        countryCode: country,
+        sector,
+        investmentType: type,
+        amount: Math.round((Math.random() * 200_000 - 100_000) * 100) / 100,
+        estimatedGrant: Math.round(Math.random() * 50_000 * 100) / 100,
+        co2Tonnes: Math.round(Math.random() * 2000 * 100) / 100,
+        employeeCount: Math.floor(Math.random() * 200) + 5,
+        revenue: Math.round(Math.random() * 20_000_000 * 100) / 100,
+        userId: demoUser.id,
+        createdAt,
+      },
+    });
+    analyticsCount++;
+  }
+  console.log(`  MarketAnalytic: ${analyticsCount} sample entries seeded ✓`);
+
+  console.log('\nSeed complete. 4 plans, 6 countries, 6 orgs, 6 calculations, 60 analytics.');
 }
 
 main()

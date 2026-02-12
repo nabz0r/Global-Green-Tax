@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 
 export interface QuotaCheckResult {
@@ -20,6 +20,7 @@ export interface PlanWithUsage {
     whiteLabel: boolean;
     apiAccess: boolean;
     ssoEnabled: boolean;
+    fiscalDeepDive: boolean;
   };
   usage: {
     simulationsUsedThisMonth: number;
@@ -27,6 +28,23 @@ export interface PlanWithUsage {
     currentPeriodStart: Date;
   };
 }
+
+/** Default limits for orgs with no plan assigned (FREEMIUM fallback). */
+const FREEMIUM_DEFAULTS = {
+  planName: 'FREEMIUM' as const,
+  displayName: 'Freemium',
+  priceEuroCents: 0,
+  limits: {
+    maxSimulationsPerMonth: 3,
+    maxPdfExportsPerMonth: 0, // PDF export blocked
+    maxCountries: 1,
+    maxUsers: 1,
+    whiteLabel: false,
+    apiAccess: false,
+    ssoEnabled: false,
+    fiscalDeepDive: false,
+  },
+};
 
 @Injectable()
 export class SubscriptionService {
@@ -43,23 +61,12 @@ export class SubscriptionService {
       include: { plan: true },
     });
 
-    // If no plan assigned, default to STARTER limits
     const plan = org.plan;
 
+    // If no plan assigned, default to FREEMIUM limits
     if (!plan) {
       return {
-        planName: 'STARTER',
-        displayName: 'Starter',
-        priceEuroCents: 9900,
-        limits: {
-          maxSimulationsPerMonth: 5,
-          maxPdfExportsPerMonth: 5,
-          maxCountries: 1,
-          maxUsers: 2,
-          whiteLabel: false,
-          apiAccess: false,
-          ssoEnabled: false,
-        },
+        ...FREEMIUM_DEFAULTS,
         usage: {
           simulationsUsedThisMonth: org.simulationsUsedThisMonth,
           pdfExportsUsedThisMonth: org.pdfExportsUsedThisMonth,
@@ -80,6 +87,7 @@ export class SubscriptionService {
         whiteLabel: plan.whiteLabel,
         apiAccess: plan.apiAccess,
         ssoEnabled: plan.ssoEnabled,
+        fiscalDeepDive: plan.fiscalDeepDive,
       },
       usage: {
         simulationsUsedThisMonth: org.simulationsUsedThisMonth,
@@ -112,7 +120,8 @@ export class SubscriptionService {
   }
 
   /**
-   * Check whether the organization can export another PDF.
+   * Check whether the organization can export a PDF.
+   * FREEMIUM plans get 0 exports → always blocked.
    */
   async checkPdfExportQuota(organizationId: string): Promise<QuotaCheckResult> {
     await this.maybeResetPeriod(organizationId);
@@ -121,7 +130,8 @@ export class SubscriptionService {
     const limit = planData.limits.maxPdfExportsPerMonth;
     const currentUsage = planData.usage.pdfExportsUsedThisMonth;
 
-    const allowed = limit === null || currentUsage < limit;
+    // limit === 0 means feature is completely blocked (FREEMIUM)
+    const allowed = limit === null ? true : limit > 0 && currentUsage < limit;
 
     return {
       allowed,
@@ -129,6 +139,38 @@ export class SubscriptionService {
       limit,
       planName: planData.planName,
     };
+  }
+
+  /**
+   * Guard: throws 403 if PDF export is not available on the plan.
+   */
+  async assertPdfExportAllowed(organizationId: string): Promise<void> {
+    const quota = await this.checkPdfExportQuota(organizationId);
+    if (!quota.allowed) {
+      throw new ForbiddenException({
+        error: 'Upgrade Required',
+        message: `L'export PDF n'est pas disponible sur le plan ${quota.planName}. Passez au plan Starter ou supérieur.`,
+        feature: 'PDF_EXPORT',
+        planName: quota.planName,
+        upgradeUrl: '/dashboard/settings?tab=plan',
+      });
+    }
+  }
+
+  /**
+   * Guard: throws 403 if Fiscal Deep Dive is not available on the plan.
+   */
+  async assertFiscalDeepDiveAllowed(organizationId: string): Promise<void> {
+    const planData = await this.getOrganizationPlan(organizationId);
+    if (!planData.limits.fiscalDeepDive) {
+      throw new ForbiddenException({
+        error: 'Upgrade Required',
+        message: `L'analyse fiscale approfondie n'est pas disponible sur le plan ${planData.planName}. Passez au plan Professional ou supérieur.`,
+        feature: 'FISCAL_DEEP_DIVE',
+        planName: planData.planName,
+        upgradeUrl: '/dashboard/settings?tab=plan',
+      });
+    }
   }
 
   /**
@@ -204,7 +246,6 @@ export class SubscriptionService {
     const periodStart = new Date(org.currentPeriodStart);
     const now = new Date();
 
-    // Check if we've crossed into a new calendar month since the period started
     const monthsDiff =
       (now.getFullYear() - periodStart.getFullYear()) * 12 +
       (now.getMonth() - periodStart.getMonth());

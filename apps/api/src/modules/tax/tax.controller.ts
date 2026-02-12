@@ -34,6 +34,7 @@ export class TaxController {
       tenant.organizationId,
       tenant.countryCode,
       body,
+      tenant.userId,
     );
 
     // Increment usage counter after successful calculation
