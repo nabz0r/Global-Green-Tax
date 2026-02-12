@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { UserButton } from '@clerk/nextjs';
 import {
@@ -26,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ResultCard } from '@/components/result-card';
 import { simulateLocally, type SimulationParams, type CountryCode } from '@/lib/engine-client';
+import { exportPdf } from '@/lib/pdf/export-pdf';
 
 const COUNTRIES = [
   { code: 'LU' as const, name: 'Luxembourg', flag: 'LU' },
@@ -92,6 +93,28 @@ export default function SimulatePage() {
     auditExpense, isLU,
   ]);
 
+  // ─── PDF export ──────────────────────────────────────────────
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportPdf = useCallback(async () => {
+    setExporting(true);
+    try {
+      await exportPdf({
+        countryCode,
+        fiscalYear: 2026,
+        lineItems,
+        co2Tonnes,
+        revenue,
+        employeeCount,
+        enterpriseType,
+        solarCapacityKWp: solarKWp,
+        selfConsumptionRatio: selfConsumption / 100,
+      });
+    } finally {
+      setExporting(false);
+    }
+  }, [countryCode, lineItems, co2Tonnes, revenue, employeeCount, enterpriseType, solarKWp, selfConsumption]);
+
   return (
     <div className="min-h-screen bg-background">
       {/* ─── Header ─────────────────────────────────────────────── */}
@@ -103,7 +126,31 @@ export default function SimulatePage() {
             </Link>
             <Badge variant="secondary">{country.name} 2026</Badge>
           </div>
-          <UserButton />
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportPdf}
+              disabled={exporting || lineItems.length === 0}
+              className="gap-2"
+            >
+              {exporting ? (
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" className="opacity-25" />
+                  <path d="M4 12a8 8 0 018-8" className="opacity-75" />
+                </svg>
+              ) : (
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <polyline points="9 15 12 18 15 15" />
+                </svg>
+              )}
+              {exporting ? 'Génération...' : 'Exporter PDF'}
+            </Button>
+            <UserButton />
+          </div>
         </div>
       </header>
 
@@ -420,6 +467,29 @@ export default function SimulatePage() {
           {/* ─── RIGHT: Results ─────────────────────────────────── */}
           <div className="lg:sticky lg:top-20 lg:self-start space-y-6">
             <ResultCard lineItems={lineItems} />
+
+            {/* Export PDF button (secondary placement) */}
+            <Button
+              className="w-full gap-2"
+              size="lg"
+              onClick={handleExportPdf}
+              disabled={exporting || lineItems.length === 0}
+            >
+              {exporting ? (
+                <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" className="opacity-25" />
+                  <path d="M4 12a8 8 0 018-8" className="opacity-75" />
+                </svg>
+              ) : (
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <polyline points="9 15 12 18 15 15" />
+                </svg>
+              )}
+              {exporting ? 'Génération du rapport...' : 'Exporter le rapport PDF'}
+            </Button>
           </div>
         </div>
       </main>
