@@ -1,0 +1,41 @@
+{
+  "metadata": {
+    "countryCode": "PT",
+    "countryName": "Portugal",
+    "fiscalYear": 2026,
+    "currency": "EUR",
+    "lastUpdated": "2026-02-12"
+  },
+  "taxRules": {
+    "iva_reducido": {
+      "rate": 0.06,
+      "standardRate": 0.23,
+      "label": "IVA Reduzido Energias Renováveis"
+    },
+    "corporateTax": {
+      "standardRate": 0.21,
+      "smeRate": 0.17,
+      "smeThreshold": 25000,
+      "description": "IRC 21% standard / 17% PME (primeiro 25k EUR lucro)"
+    }
+  },
+  "subsidies": {
+    "fundo_ambiental": {
+      "id": "PT_FA_EDIFICIOS",
+      "label": "Programa Apoio Edifícios Mais Sustentáveis",
+      "reimbursementRate": 0.85,
+      "maxGrant": 7500
+    },
+    "ev_incentivo": {
+      "id": "PT_FA_VE",
+      "label": "Incentivo Veículos Elétricos",
+      "grantPerVehicle": 4000
+    }
+  },
+  "energyRates": {
+    "gridElectricityAvg": 0.23,
+    "dieselAvg": 1.68,
+    "feedInTariff": 0.055,
+    "insolation_kWhPerKWp": 1500
+  }
+}

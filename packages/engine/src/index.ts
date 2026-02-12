@@ -3,3 +3,7 @@ export { JurisdictionStrategy } from './jurisdiction-strategy';
 export { StrategyRegistry } from './strategy-registry';
 export { Luxembourg2026Strategy } from './strategies/luxembourg-2026';
 export { France2026Strategy } from './strategies/france-2026';
+export { Germany2026Strategy } from './strategies/germany-2026';
+export { Belgium2026Strategy } from './strategies/belgium-2026';
+export { Spain2026Strategy } from './strategies/spain-2026';
+export { Portugal2026Strategy } from './strategies/portugal-2026';

@@ -1,0 +1,51 @@
+{
+  "metadata": {
+    "countryCode": "BE",
+    "countryName": "Belgium",
+    "fiscalYear": 2026,
+    "currency": "EUR",
+    "lastUpdated": "2026-02-12"
+  },
+  "taxRules": {
+    "investmentDeduction": {
+      "rate": 0.275,
+      "label": "Déduction pour investissement vert"
+    },
+    "corporateTax": {
+      "standardRate": 0.25,
+      "smeRate": 0.20,
+      "smeThreshold": 100000,
+      "smeRevenueMax": 9000000,
+      "description": "ISOC 25% standard / 20% PME (premier 100k EUR bénéfice)"
+    }
+  },
+  "subsidies": {
+    "ecologiepremie": {
+      "id": "BE_VLAIO_EPPlus",
+      "label": "Ecologiepremie Plus (Flanders)",
+      "rates": {
+        "SMALL_ENTERPRISE": 0.50,
+        "MEDIUM_ENTERPRISE": 0.30,
+        "LARGE_ENTERPRISE": 0.15
+      },
+      "maxGrant": 250000
+    },
+    "wallonie_audit": {
+      "id": "BE_AMURE",
+      "label": "Aide AMURE (Wallonie)",
+      "grantRate": 0.75,
+      "maxGrant": 50000
+    },
+    "ev_prime": {
+      "id": "BE_FLEET_EV",
+      "label": "Prime Flotte EV (Flandre)",
+      "grantPerVehicle": 5000
+    }
+  },
+  "energyRates": {
+    "gridElectricityAvg": 0.32,
+    "dieselAvg": 1.85,
+    "feedInTariff": 0.09,
+    "insolation_kWhPerKWp": 900
+  }
+}

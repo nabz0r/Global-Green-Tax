@@ -4,6 +4,10 @@ import {
   StrategyRegistry,
   Luxembourg2026Strategy,
   France2026Strategy,
+  Germany2026Strategy,
+  Belgium2026Strategy,
+  Spain2026Strategy,
+  Portugal2026Strategy,
 } from '@ggt/engine';
 import type { CalculationInput, CalculationResult } from '@ggt/shared';
 import { PrismaService } from '../../common/prisma.service';
@@ -20,6 +24,10 @@ export class TaxService {
     const registry = new StrategyRegistry();
     registry.register(new Luxembourg2026Strategy());
     registry.register(new France2026Strategy());
+    registry.register(new Germany2026Strategy());
+    registry.register(new Belgium2026Strategy());
+    registry.register(new Spain2026Strategy());
+    registry.register(new Portugal2026Strategy());
     this.engine = new GreenTaxEngine(registry);
   }
 

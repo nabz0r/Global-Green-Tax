@@ -1,0 +1,42 @@
+{
+  "metadata": {
+    "countryCode": "ES",
+    "countryName": "Spain",
+    "fiscalYear": 2026,
+    "currency": "EUR",
+    "lastUpdated": "2026-02-12"
+  },
+  "taxRules": {
+    "bonificacion_ibi": {
+      "rate": 0.50,
+      "duration_years": 5,
+      "label": "IBI Tax Reduction (Solar)",
+      "averageAnnualIBI": 2000
+    },
+    "corporateTax": {
+      "standardRate": 0.25,
+      "smeRate": 0.23,
+      "smeRevenueMax": 1000000,
+      "description": "Impuesto de Sociedades: 25% standard / 23% PYME"
+    }
+  },
+  "subsidies": {
+    "nextgen_solar": {
+      "id": "ES_IDAE_NEXTGEN",
+      "label": "Programa de Incentivos Autoconsumo",
+      "ratePerKWp": 600,
+      "maxGrant": 12000
+    },
+    "moves_iii": {
+      "id": "ES_MOVES_III",
+      "label": "Plan MOVES (EV Mobility)",
+      "grantPerVehicle": 5000
+    }
+  },
+  "energyRates": {
+    "gridElectricityAvg": 0.21,
+    "dieselAvg": 1.60,
+    "feedInTariff": 0.06,
+    "insolation_kWhPerKWp": 1500
+  }
+}

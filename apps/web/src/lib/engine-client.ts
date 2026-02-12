@@ -1,11 +1,11 @@
 /**
  * Client-side calculation engine for instant simulation.
- * Supports multiple jurisdictions (LU, FR) dispatched by countryCode.
+ * Supports multiple jurisdictions (LU, FR, DE, BE, ES, PT) dispatched by countryCode.
  */
 
 import type { LineItem } from './api';
 
-export type CountryCode = 'LU' | 'FR';
+export type CountryCode = 'LU' | 'FR' | 'DE' | 'BE' | 'ES' | 'PT';
 export type EnterpriseType = 'SMALL_ENTERPRISE' | 'MEDIUM_ENTERPRISE' | 'LARGE_ENTERPRISE';
 
 export interface SimulationParams {
@@ -29,6 +29,10 @@ export function simulateLocally(params: SimulationParams): LineItem[] {
   switch (params.countryCode) {
     case 'LU': return simulateLuxembourg(params);
     case 'FR': return simulateFrance(params);
+    case 'DE': return simulateGermany(params);
+    case 'BE': return simulateBelgium(params);
+    case 'ES': return simulateSpain(params);
+    case 'PT': return simulatePortugal(params);
     default:   return [];
   }
 }
@@ -192,6 +196,265 @@ function simulateFrance(p: SimulationParams): LineItem[] {
     const self = prod * p.selfConsumptionRatio;
     const surplus = prod * (1 - p.selfConsumptionRatio);
     items.push({ code: 'FR-ENERGY-SAVINGS-2026', label: 'Économies énergie PV', amount: self * FR_GRID + surplus * FR_PV_FEED_SURPLUS, currency: 'EUR', description: `${prod.toFixed(0)} kWh/an estimés` });
+  }
+
+  return items;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  GERMANY 2026
+// ═══════════════════════════════════════════════════════════════════════
+
+const DE_NEHS_RATE = 65;
+const DE_KST = 0.15;
+const DE_SOLI = 0.055;
+const DE_GEWST_MESSZAHL = 0.035;
+const DE_GEWST_HEBESATZ = 4.0;
+const DE_KFW_RATE = 300;
+const DE_KFW_MAX = 15_000;
+const DE_BAFA_SME = 0.35;
+const DE_BAFA_LARGE = 0.20;
+const DE_BAFA_MAX = 100_000;
+const DE_EV_GRANT = 3_000;
+const DE_GRID = 0.38;
+const DE_FEED_IN = 0.082;
+
+function simulateGermany(p: SimulationParams): LineItem[] {
+  const items: LineItem[] = [];
+
+  // nEHS CO2
+  if (p.co2Tonnes > 0) {
+    const tax = p.co2Tonnes * DE_NEHS_RATE;
+    items.push({ code: 'DE-NEHS-2026', label: 'nEHS CO2-Abgabe', amount: -tax, currency: 'EUR', description: `${p.co2Tonnes}t x ${DE_NEHS_RATE} EUR/t`, legalReference: 'BEHG' });
+  }
+
+  // Corporate Tax (KSt + Soli + GewSt)
+  if (p.revenue > 0) {
+    const profit = p.revenue * 0.10;
+    const kst = profit * DE_KST;
+    const soli = kst * DE_SOLI;
+    const gewst = profit * DE_GEWST_MESSZAHL * DE_GEWST_HEBESATZ;
+    items.push({ code: 'DE-CORP-TAX-2026', label: 'KSt + Soli + GewSt', amount: -(kst + soli + gewst), currency: 'EUR', description: `~29,83% sur ${profit.toFixed(0)} EUR bénéfice estimé` });
+  }
+
+  // KfW 270 Solar
+  if (p.solarCapacityKWp > 0) {
+    const grant = Math.min(p.solarCapacityKWp * DE_KFW_RATE, DE_KFW_MAX);
+    items.push({ code: 'DE-KFW270-2026', label: 'KfW 270 Erneuerbare Energien', amount: grant, currency: 'EUR', description: `${p.solarCapacityKWp} kWp x ${DE_KFW_RATE} EUR`, legalReference: 'KfW-Programm 270' });
+  }
+
+  // BAFA EE
+  if (p.sustainabilityAuditExpense > 0) {
+    const isLarge = p.enterpriseType === 'LARGE_ENTERPRISE';
+    const rate = isLarge ? DE_BAFA_LARGE : DE_BAFA_SME;
+    const grant = Math.min(p.sustainabilityAuditExpense * rate, DE_BAFA_MAX);
+    items.push({ code: 'DE-BAFA-EE-2026', label: 'BAFA Energieeffizienz-Bonus', amount: grant, currency: 'EUR', description: `${(rate * 100).toFixed(0)}% von ${p.sustainabilityAuditExpense.toLocaleString()} EUR`, legalReference: 'BAFA EE' });
+  }
+
+  // Umweltbonus
+  if (p.evCount > 0) {
+    items.push({ code: 'DE-UMWELTBONUS-2026', label: 'Umweltbonus E-Fahrzeug', amount: p.evCount * DE_EV_GRANT, currency: 'EUR', description: `${p.evCount} Fahrzeug(e) x ${DE_EV_GRANT.toLocaleString()} EUR`, legalReference: 'Umweltbonus' });
+  }
+
+  // Energy savings
+  if (p.solarCapacityKWp > 0) {
+    const prod = p.solarCapacityKWp * 950;
+    const self = prod * p.selfConsumptionRatio;
+    const surplus = prod * (1 - p.selfConsumptionRatio);
+    items.push({ code: 'DE-ENERGY-SAVINGS-2026', label: 'PV-Energieeinsparungen', amount: self * DE_GRID + surplus * DE_FEED_IN, currency: 'EUR', description: `${prod.toFixed(0)} kWh/Jahr` });
+  }
+
+  return items;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  BELGIUM 2026
+// ═══════════════════════════════════════════════════════════════════════
+
+const BE_ISOC_STANDARD = 0.25;
+const BE_ISOC_SME = 0.20;
+const BE_ISOC_SME_THRESHOLD = 100_000;
+const BE_SME_REVENUE_MAX = 9_000_000;
+const BE_INVEST_DEDUCTION = 0.275;
+const BE_ECO_RATES: Record<string, number> = { SMALL_ENTERPRISE: 0.50, MEDIUM_ENTERPRISE: 0.30, LARGE_ENTERPRISE: 0.15 };
+const BE_ECO_MAX = 250_000;
+const BE_AMURE_RATE = 0.75;
+const BE_AMURE_MAX = 50_000;
+const BE_EV_GRANT = 5_000;
+const BE_GRID = 0.32;
+const BE_FEED_IN = 0.09;
+
+function simulateBelgium(p: SimulationParams): LineItem[] {
+  const items: LineItem[] = [];
+
+  // ISOC Corporate Tax with green investment deduction
+  if (p.revenue > 0) {
+    const profit = p.revenue * 0.10;
+    const isSME = p.revenue < BE_SME_REVENUE_MAX;
+    const greenInvestment = p.solarCapacityKWp * 1_500;
+    const deduction = greenInvestment * BE_INVEST_DEDUCTION;
+    const taxableProfit = Math.max(0, profit - deduction);
+
+    let tax: number;
+    if (isSME && taxableProfit <= BE_ISOC_SME_THRESHOLD) {
+      tax = taxableProfit * BE_ISOC_SME;
+    } else if (isSME) {
+      tax = BE_ISOC_SME_THRESHOLD * BE_ISOC_SME + (taxableProfit - BE_ISOC_SME_THRESHOLD) * BE_ISOC_STANDARD;
+    } else {
+      tax = taxableProfit * BE_ISOC_STANDARD;
+    }
+    items.push({ code: 'BE-ISOC-2026', label: 'ISOC (Impôt des Sociétés)', amount: -tax, currency: 'EUR', description: `${isSME ? 'PME' : 'Taux normal'} sur ${taxableProfit.toFixed(0)} EUR` });
+
+    if (deduction > 0) {
+      const taxSaved = deduction * (isSME ? BE_ISOC_SME : BE_ISOC_STANDARD);
+      items.push({ code: 'BE-INVEST-DEDUCT-2026', label: 'Déduction investissement vert', amount: taxSaved, currency: 'EUR', description: `27,5% de ${greenInvestment.toLocaleString()} EUR → ${taxSaved.toFixed(0)} EUR économie`, legalReference: 'CIR/92 Art. 69' });
+    }
+  }
+
+  // Ecologiepremie Plus
+  if (p.solarCapacityKWp > 0) {
+    const greenInvestment = p.solarCapacityKWp * 1_500;
+    const rate = BE_ECO_RATES[p.enterpriseType] ?? 0.15;
+    const grant = Math.min(greenInvestment * rate, BE_ECO_MAX);
+    items.push({ code: 'BE-ECOPREMIE-2026', label: 'Ecologiepremie Plus', amount: grant, currency: 'EUR', description: `${(rate * 100).toFixed(0)}% de ${greenInvestment.toLocaleString()} EUR`, legalReference: 'VLAIO' });
+  }
+
+  // AMURE
+  if (p.sustainabilityAuditExpense > 0) {
+    const grant = Math.min(p.sustainabilityAuditExpense * BE_AMURE_RATE, BE_AMURE_MAX);
+    items.push({ code: 'BE-AMURE-2026', label: 'Aide AMURE (Wallonie)', amount: grant, currency: 'EUR', description: `75% de ${p.sustainabilityAuditExpense.toLocaleString()} EUR (max ${BE_AMURE_MAX.toLocaleString()})`, legalReference: 'SPW Énergie' });
+  }
+
+  // Fleet EV
+  if (p.evCount > 0) {
+    items.push({ code: 'BE-FLEET-EV-2026', label: 'Prime Flotte EV', amount: p.evCount * BE_EV_GRANT, currency: 'EUR', description: `${p.evCount} véhicule(s) x ${BE_EV_GRANT.toLocaleString()} EUR` });
+  }
+
+  // Energy savings
+  if (p.solarCapacityKWp > 0) {
+    const prod = p.solarCapacityKWp * 900;
+    const self = prod * p.selfConsumptionRatio;
+    const surplus = prod * (1 - p.selfConsumptionRatio);
+    items.push({ code: 'BE-ENERGY-SAVINGS-2026', label: 'Économies énergie PV', amount: self * BE_GRID + surplus * BE_FEED_IN, currency: 'EUR', description: `${prod.toFixed(0)} kWh/an` });
+  }
+
+  return items;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SPAIN 2026
+// ═══════════════════════════════════════════════════════════════════════
+
+const ES_IS_STANDARD = 0.25;
+const ES_IS_PYME = 0.23;
+const ES_PYME_REVENUE_MAX = 1_000_000;
+const ES_IBI_BONIFICACION = 0.50;
+const ES_IBI_ANNUAL = 2_000;
+const ES_SOLAR_RATE = 600;
+const ES_SOLAR_MAX = 12_000;
+const ES_EV_GRANT = 5_000;
+const ES_GRID = 0.21;
+const ES_FEED_IN = 0.06;
+
+function simulateSpain(p: SimulationParams): LineItem[] {
+  const items: LineItem[] = [];
+
+  // Impuesto de Sociedades
+  if (p.revenue > 0) {
+    const profit = p.revenue * 0.10;
+    const isPyme = p.revenue < ES_PYME_REVENUE_MAX;
+    const rate = isPyme ? ES_IS_PYME : ES_IS_STANDARD;
+    items.push({ code: 'ES-IS-2026', label: 'Impuesto de Sociedades', amount: -(profit * rate), currency: 'EUR', description: `${isPyme ? 'PYME' : 'Estándar'}: ${(rate * 100).toFixed(0)}% sobre ${profit.toFixed(0)} EUR`, legalReference: 'Ley 27/2014' });
+  }
+
+  // IBI Bonificación Solar
+  if (p.solarCapacityKWp > 0) {
+    const saving = ES_IBI_ANNUAL * ES_IBI_BONIFICACION;
+    items.push({ code: 'ES-IBI-SOLAR-2026', label: 'Bonificación IBI Solar', amount: saving, currency: 'EUR', description: `50% reducción IBI = ${saving.toFixed(0)} EUR/año`, legalReference: 'RDL 7/2019' });
+  }
+
+  // NextGen Autoconsumo
+  if (p.solarCapacityKWp > 0) {
+    const grant = Math.min(p.solarCapacityKWp * ES_SOLAR_RATE, ES_SOLAR_MAX);
+    items.push({ code: 'ES-NEXTGEN-SOLAR-2026', label: 'Programa Autoconsumo', amount: grant, currency: 'EUR', description: `${p.solarCapacityKWp} kWp x ${ES_SOLAR_RATE} EUR`, legalReference: 'IDAE NextGen EU' });
+  }
+
+  // MOVES III
+  if (p.evCount > 0) {
+    items.push({ code: 'ES-MOVES-2026', label: 'Plan MOVES III', amount: p.evCount * ES_EV_GRANT, currency: 'EUR', description: `${p.evCount} vehículo(s) x ${ES_EV_GRANT.toLocaleString()} EUR`, legalReference: 'RD 266/2021' });
+  }
+
+  // Energy savings
+  if (p.solarCapacityKWp > 0) {
+    const prod = p.solarCapacityKWp * 1_500; // Excellent Spanish insolation
+    const self = prod * p.selfConsumptionRatio;
+    const surplus = prod * (1 - p.selfConsumptionRatio);
+    items.push({ code: 'ES-ENERGY-SAVINGS-2026', label: 'Ahorro energético PV', amount: self * ES_GRID + surplus * ES_FEED_IN, currency: 'EUR', description: `${prod.toFixed(0)} kWh/año` });
+  }
+
+  return items;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PORTUGAL 2026
+// ═══════════════════════════════════════════════════════════════════════
+
+const PT_IRC_STANDARD = 0.21;
+const PT_IRC_PME = 0.17;
+const PT_PME_THRESHOLD = 25_000;
+const PT_IVA_STANDARD = 0.23;
+const PT_IVA_REDUCED = 0.06;
+const PT_FA_RATE = 0.85;
+const PT_FA_MAX = 7_500;
+const PT_EV_GRANT = 4_000;
+const PT_GRID = 0.23;
+const PT_FEED_IN = 0.055;
+
+function simulatePortugal(p: SimulationParams): LineItem[] {
+  const items: LineItem[] = [];
+
+  // IRC Corporate Tax
+  if (p.revenue > 0) {
+    const profit = p.revenue * 0.10;
+    let tax: number;
+    let desc: string;
+    if (profit <= PT_PME_THRESHOLD) {
+      tax = profit * PT_IRC_PME;
+      desc = `PME: 17% sobre ${profit.toFixed(0)} EUR`;
+    } else {
+      tax = PT_PME_THRESHOLD * PT_IRC_PME + (profit - PT_PME_THRESHOLD) * PT_IRC_STANDARD;
+      desc = `PME: 17% sobre 25k + 21% sobre excedente`;
+    }
+    items.push({ code: 'PT-IRC-2026', label: 'IRC (Imposto sobre Rendimento)', amount: -tax, currency: 'EUR', description: desc, legalReference: 'CIRC Art. 87' });
+  }
+
+  // IVA Reduzido (savings on solar investment)
+  if (p.solarCapacityKWp > 0) {
+    const investmentPerKWp = 1_200;
+    const totalInvest = p.solarCapacityKWp * investmentPerKWp;
+    const saving = totalInvest * (PT_IVA_STANDARD - PT_IVA_REDUCED);
+    items.push({ code: 'PT-IVA-SOLAR-2026', label: 'Poupança IVA Reduzido', amount: saving, currency: 'EUR', description: `IVA 6% vs 23% sobre ${totalInvest.toLocaleString()} EUR = ${saving.toFixed(0)} EUR`, legalReference: 'CIVA – Lista I' });
+  }
+
+  // Fundo Ambiental
+  if (p.solarCapacityKWp > 0) {
+    const investmentPerKWp = 1_200;
+    const totalInvest = p.solarCapacityKWp * investmentPerKWp;
+    const grant = Math.min(totalInvest * PT_FA_RATE, PT_FA_MAX);
+    items.push({ code: 'PT-FA-EDIFICIOS-2026', label: 'Fundo Ambiental – Edifícios', amount: grant, currency: 'EUR', description: `85% de ${totalInvest.toLocaleString()} EUR (máx. ${PT_FA_MAX.toLocaleString()} EUR)`, legalReference: 'Fundo Ambiental' });
+  }
+
+  // EV Incentivo
+  if (p.evCount > 0) {
+    items.push({ code: 'PT-FA-VE-2026', label: 'Incentivo Veículos Elétricos', amount: p.evCount * PT_EV_GRANT, currency: 'EUR', description: `${p.evCount} veículo(s) x ${PT_EV_GRANT.toLocaleString()} EUR`, legalReference: 'Fundo Ambiental VE' });
+  }
+
+  // Energy savings
+  if (p.solarCapacityKWp > 0) {
+    const prod = p.solarCapacityKWp * 1_500;
+    const self = prod * p.selfConsumptionRatio;
+    const surplus = prod * (1 - p.selfConsumptionRatio);
+    items.push({ code: 'PT-ENERGY-SAVINGS-2026', label: 'Poupança energia PV', amount: self * PT_GRID + surplus * PT_FEED_IN, currency: 'EUR', description: `${prod.toFixed(0)} kWh/ano` });
   }
 
   return items;

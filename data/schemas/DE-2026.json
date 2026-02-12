@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "countryCode": "DE",
+    "countryName": "Germany",
+    "fiscalYear": 2026,
+    "currency": "EUR",
+    "lastUpdated": "2026-02-12"
+  },
+  "taxRules": {
+    "carbonTax": {
+      "unit": "ton_CO2",
+      "pricePerUnit": 65.00,
+      "label": "nEHS (National Emissions Trading)"
+    },
+    "corporateTax": {
+      "koerperschaftsteuer": 0.15,
+      "solidaritaetszuschlag": 0.055,
+      "gewerbesteuer_hebesatz": 400,
+      "gewerbesteuer_messzahl": 0.035,
+      "effectiveRate": 0.2983,
+      "description": "KSt 15% + Soli 5.5% + GewSt ~14% (Hebesatz 400%)"
+    }
+  },
+  "subsidies": {
+    "beg_solar": {
+      "id": "DE_KFW_270",
+      "label": "KfW 270 Renewable Energy",
+      "ratePerKWp": 300,
+      "maxGrant": 15000,
+      "interestRateSubsidy": 0.02
+    },
+    "ee_bonus": {
+      "id": "DE_BAFA_EE",
+      "label": "BAFA Efficiency Bonus",
+      "rates": {
+        "SMALL_ENTERPRISE": 0.35,
+        "MEDIUM_ENTERPRISE": 0.35,
+        "LARGE_ENTERPRISE": 0.20
+      },
+      "maxGrant": 100000
+    },
+    "ev_umweltbonus": {
+      "id": "DE_UMWELTBONUS",
+      "label": "Umweltbonus E-Fahrzeug",
+      "grantPerVehicle": 3000
+    }
+  },
+  "energyRates": {
+    "gridElectricityAvg": 0.38,
+    "dieselAvg": 1.72,
+    "feedInTariff": 0.082,
+    "insolation_kWhPerKWp": 950
+  }
+}
