@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import Link from 'next/link';
-import { UserButton } from '@clerk/nextjs';
+import { motion } from 'framer-motion';
+import { PageTransition } from '@/components/dashboard/page-transition';
 import {
   Card,
   CardContent,
@@ -242,17 +242,18 @@ export default function SimulatePage() {
   }, [countryCode, lineItems, co2Tonnes, revenue, employeeCount, enterpriseType, solarKWp, selfConsumption]);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* ─── Header ─────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="text-xl font-semibold text-primary">
-              Global Green Tax
-            </Link>
-            <Badge variant="secondary">{country.name} 2026</Badge>
+    <PageTransition>
+      <div className="p-8 max-w-[1400px] mx-auto">
+        {/* ─── Page Header ─────────────────────────────────────── */}
+        <div className="mb-8 flex items-end justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Simulation fiscale verte</h1>
+            <p className="mt-1 text-muted-foreground">
+              Ajustez les parametres et visualisez instantanement l'impact fiscal de vos investissements verts.
+            </p>
           </div>
           <div className="flex items-center gap-3">
+            <Badge variant="secondary" className="text-sm">{country.name} 2026</Badge>
             <Button
               variant="outline"
               size="sm"
@@ -275,17 +276,7 @@ export default function SimulatePage() {
               )}
               {exporting ? 'Generation...' : 'Exporter PDF'}
             </Button>
-            <UserButton />
           </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Simulation fiscale verte</h1>
-          <p className="mt-2 text-muted-foreground">
-            Ajustez les parametres et visualisez instantanement l'impact fiscal de vos investissements verts.
-          </p>
         </div>
 
         <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
@@ -617,7 +608,7 @@ export default function SimulatePage() {
             </Button>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </PageTransition>
   );
 }
