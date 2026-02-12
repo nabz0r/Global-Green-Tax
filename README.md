@@ -1,6 +1,6 @@
 # Global Green Tax
 
-![GGT](GGT1,jpg)
+![GGT](GGT1.jpg)
 
 **Multi-tenant, multi-jurisdictional SaaS platform for calculating carbon taxes and green subsidies.**
 
