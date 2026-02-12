@@ -1,5 +1,7 @@
 # Global Green Tax
 
+![GGT](GGT1,jpg)
+
 **Multi-tenant, multi-jurisdictional SaaS platform for calculating carbon taxes and green subsidies.**
 
 Each country is a pluggable data module — add a JSON schema + strategy class and the entire stack (API, engine, frontend, PDF reports) adapts automatically.
