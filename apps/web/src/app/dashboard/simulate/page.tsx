@@ -25,7 +25,12 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ResultCard } from '@/components/result-card';
-import { simulateLocally, type SimulationParams } from '@/lib/engine-client';
+import { simulateLocally, type SimulationParams, type CountryCode } from '@/lib/engine-client';
+
+const COUNTRIES = [
+  { code: 'LU' as const, name: 'Luxembourg', flag: 'LU' },
+  { code: 'FR' as const, name: 'France', flag: 'FR' },
+];
 
 const ENTERPRISE_TYPES = [
   { value: 'SMALL_ENTERPRISE', label: 'Petite entreprise', desc: '< 50 emp., < 10M EUR' },
@@ -34,7 +39,13 @@ const ENTERPRISE_TYPES = [
 ] as const;
 
 export default function SimulatePage() {
-  // ─── Form state ─────────────────────────────────────────────
+  // ─── Country selector ──────────────────────────────────────────
+  const [countryCode, setCountryCode] = useState<CountryCode>('LU');
+  const country = COUNTRIES.find((c) => c.code === countryCode)!;
+  const isFR = countryCode === 'FR';
+  const isLU = countryCode === 'LU';
+
+  // ─── Form state ────────────────────────────────────────────────
   const [co2Tonnes, setCo2Tonnes] = useState(500);
   const [revenue, setRevenue] = useState(5_000_000);
   const [employeeCount, setEmployeeCount] = useState(30);
@@ -44,18 +55,22 @@ export default function SimulatePage() {
   const [solarKWp, setSolarKWp] = useState(15);
   const [selfConsumption, setSelfConsumption] = useState(60);
 
-  // Mobility
+  // Mobility — shared
   const [evCount, setEvCount] = useState(2);
   const [evConsumption, setEvConsumption] = useState(15);
+  // LU-specific
   const [wallboxCount, setWallboxCount] = useState(1);
   const [smartCharging, setSmartCharging] = useState(true);
+  // FR-specific
+  const [evCountVans, setEvCountVans] = useState(0);
 
-  // Fit 4 Sustainability
+  // Sustainability audit
   const [auditExpense, setAuditExpense] = useState(25_000);
 
-  // ─── Compute results in real-time ──────────────────────────
+  // ─── Compute results in real-time ──────────────────────────────
   const lineItems = useMemo(() => {
     return simulateLocally({
+      countryCode,
       co2Tonnes,
       revenue,
       employeeCount,
@@ -64,15 +79,17 @@ export default function SimulatePage() {
       selfConsumptionRatio: selfConsumption / 100,
       evCount,
       evConsumptionKWhPer100km: evConsumption,
-      wallboxCount,
-      wallboxSmartCharging: smartCharging,
+      evCountVans,
+      wallboxCount: isLU ? wallboxCount : 0,
+      wallboxSmartCharging: isLU ? smartCharging : false,
       sustainabilityAuditExpense: auditExpense,
     });
   }, [
-    co2Tonnes, revenue, employeeCount, enterpriseType,
+    countryCode, co2Tonnes, revenue, employeeCount, enterpriseType,
     solarKWp, selfConsumption,
-    evCount, evConsumption, wallboxCount, smartCharging,
-    auditExpense,
+    evCount, evConsumption, evCountVans,
+    wallboxCount, smartCharging,
+    auditExpense, isLU,
   ]);
 
   return (
@@ -84,7 +101,7 @@ export default function SimulatePage() {
             <Link href="/dashboard" className="text-xl font-semibold text-primary">
               Global Green Tax
             </Link>
-            <Badge variant="secondary">Luxembourg 2026</Badge>
+            <Badge variant="secondary">{country.name} 2026</Badge>
           </div>
           <UserButton />
         </div>
@@ -101,6 +118,40 @@ export default function SimulatePage() {
         <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
           {/* ─── LEFT: Form ────────────────────────────────────── */}
           <div className="space-y-6">
+
+            {/* Country Selector */}
+            <Card className="border-primary/30">
+              <CardHeader>
+                <CardTitle className="text-lg">Juridiction</CardTitle>
+                <CardDescription>Sélectionnez le pays pour la simulation</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  {COUNTRIES.map((c) => (
+                    <button
+                      key={c.code}
+                      onClick={() => setCountryCode(c.code)}
+                      className={`flex items-center gap-3 rounded-lg border-2 p-4 transition-all ${
+                        countryCode === c.code
+                          ? 'border-primary bg-primary/5 shadow-sm'
+                          : 'border-border hover:border-primary/40 hover:bg-accent/50'
+                      }`}
+                    >
+                      <span className="text-2xl">{c.code === 'LU' ? '\u{1F1F1}\u{1F1FA}' : '\u{1F1EB}\u{1F1F7}'}</span>
+                      <div className="text-left">
+                        <p className="text-sm font-semibold">{c.name}</p>
+                        <p className="text-xs text-muted-foreground">FY 2026</p>
+                      </div>
+                      {countryCode === c.code && (
+                        <svg className="ml-auto h-5 w-5 text-primary" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Enterprise Profile */}
             <Card>
@@ -147,6 +198,12 @@ export default function SimulatePage() {
                   step={1}
                   formatValue={(v) => `${v}`}
                 />
+
+                {isFR && revenue < 10_000_000 && (
+                  <p className="text-xs text-primary">
+                    PME: taux réduit IS 15% applicable (premier 42 500 EUR de bénéfice)
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -157,7 +214,9 @@ export default function SimulatePage() {
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-destructive/10 text-destructive text-xs font-bold">2</span>
                   Émissions CO2
                 </CardTitle>
-                <CardDescription>Volume annuel d'émissions en tonnes</CardDescription>
+                <CardDescription>
+                  {isLU ? 'Taxe CO2 progressive Luxembourg' : 'Contribution Climat Énergie (CCE) à 44,60 EUR/t'}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Slider
@@ -191,7 +250,9 @@ export default function SimulatePage() {
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-700 text-xs font-bold">3</span>
                   Investissement Solaire
                 </CardTitle>
-                <CardDescription>Klimabonus Photovoltaïque - PRIMe House</CardDescription>
+                <CardDescription>
+                  {isLU ? 'Klimabonus Photovoltaïque - PRIMe House' : 'Prime à l\'Autoconsommation PV (dégressive par tranche)'}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <Slider
@@ -199,7 +260,7 @@ export default function SimulatePage() {
                   value={solarKWp}
                   onValueChange={setSolarKWp}
                   min={0}
-                  max={30}
+                  max={isFR ? 100 : 30}
                   step={1}
                   formatValue={(v) => `${v} kWp`}
                 />
@@ -212,10 +273,17 @@ export default function SimulatePage() {
                   step={5}
                   formatValue={(v) => `${v}%`}
                 />
-                {selfConsumption < 50 && solarKWp > 0 && (
+                {isLU && selfConsumption < 50 && solarKWp > 0 && (
                   <p className="text-xs text-destructive">
                     Minimum 50% d'autoconsommation requis pour le Klimabonus PV
                   </p>
+                )}
+                {isFR && solarKWp > 0 && (
+                  <div className="text-xs text-muted-foreground space-y-1 rounded-md bg-accent/50 p-3">
+                    <p className="font-medium">Barème France 2026 :</p>
+                    <p>0-9 kWp: 80 EUR/kWp | 9-36 kWp: 140 EUR/kWp | 36-100 kWp: 70 EUR/kWp</p>
+                    <p>Surplus injecté: 0,0536 EUR/kWh (tarif EDF OA)</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -227,11 +295,13 @@ export default function SimulatePage() {
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold">4</span>
                   Mobilité Électrique
                 </CardTitle>
-                <CardDescription>PRIMe Car-e - Véhicules et bornes</CardDescription>
+                <CardDescription>
+                  {isLU ? 'PRIMe Car-e – Véhicules et bornes' : 'Bonus Écologique Entreprises – VP et VUL'}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <Slider
-                  label="Véhicules électriques"
+                  label={isFR ? 'Voitures particulières (VP) électriques' : 'Véhicules électriques'}
                   value={evCount}
                   onValueChange={setEvCount}
                   min={0}
@@ -239,56 +309,86 @@ export default function SimulatePage() {
                   step={1}
                   formatValue={(v) => `${v}`}
                 />
-                <Slider
-                  label="Consommation EV"
-                  value={evConsumption}
-                  onValueChange={setEvConsumption}
-                  min={10}
-                  max={25}
-                  step={0.5}
-                  formatValue={(v) => `${v} kWh/100km`}
-                />
-                {evConsumption > 18 && evCount > 0 && (
-                  <p className="text-xs text-destructive">
-                    Au-delà de 18 kWh/100km, aucune prime n'est accordée
-                  </p>
+
+                {isLU && (
+                  <>
+                    <Slider
+                      label="Consommation EV"
+                      value={evConsumption}
+                      onValueChange={setEvConsumption}
+                      min={10}
+                      max={25}
+                      step={0.5}
+                      formatValue={(v) => `${v} kWh/100km`}
+                    />
+                    {evConsumption > 18 && evCount > 0 && (
+                      <p className="text-xs text-destructive">
+                        Au-delà de 18 kWh/100km, aucune prime n'est accordée
+                      </p>
+                    )}
+
+                    <Separator />
+
+                    <Slider
+                      label="Bornes de recharge (Wallbox)"
+                      value={wallboxCount}
+                      onValueChange={setWallboxCount}
+                      min={0}
+                      max={10}
+                      step={1}
+                      formatValue={(v) => `${v}`}
+                    />
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Smart Charging</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Bonus +450 EUR par borne
+                        </p>
+                      </div>
+                      <Switch checked={smartCharging} onCheckedChange={setSmartCharging} />
+                    </div>
+                  </>
                 )}
 
-                <Separator />
-
-                <Slider
-                  label="Bornes de recharge (Wallbox)"
-                  value={wallboxCount}
-                  onValueChange={setWallboxCount}
-                  min={0}
-                  max={10}
-                  step={1}
-                  formatValue={(v) => `${v}`}
-                />
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Smart Charging</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Bonus +450 EUR par borne
-                    </p>
-                  </div>
-                  <Switch checked={smartCharging} onCheckedChange={setSmartCharging} />
-                </div>
+                {isFR && (
+                  <>
+                    <Slider
+                      label="Véhicules utilitaires légers (VUL) électriques"
+                      value={evCountVans}
+                      onValueChange={setEvCountVans}
+                      min={0}
+                      max={20}
+                      step={1}
+                      formatValue={(v) => `${v}`}
+                    />
+                    <div className="text-xs text-muted-foreground rounded-md bg-accent/50 p-3">
+                      <p className="font-medium">Bonus Écologique 2026 :</p>
+                      <p>VP électrique: 3 000 EUR | VUL électrique: 4 000 EUR</p>
+                      <p>TVA déductible à 100%</p>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
-            {/* Fit 4 Sustainability */}
+            {/* Sustainability Subsidy */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">5</span>
-                  Fit 4 Sustainability
+                  {isLU ? 'Fit 4 Sustainability' : 'ADEME Tremplin'}
                 </CardTitle>
-                <CardDescription>Subvention audit & conseil développement durable</CardDescription>
+                <CardDescription>
+                  {isLU
+                    ? 'Subvention audit & conseil développement durable'
+                    : 'Aide à la transition écologique pour TPE/PME'}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <Label>Dépenses d'audit/conseil (EUR)</Label>
+                  <Label>
+                    {isLU ? "Dépenses d'audit/conseil (EUR)" : 'Dépenses de décarbonation (EUR)'}
+                  </Label>
                   <Input
                     type="number"
                     value={auditExpense}
@@ -297,12 +397,21 @@ export default function SimulatePage() {
                     max={200_000}
                     step={1000}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Plafond éligible:{' '}
-                    {enterpriseType === 'SMALL_ENTERPRISE' && '50 000 EUR (80% remboursé)'}
-                    {enterpriseType === 'MEDIUM_ENTERPRISE' && '100 000 EUR (60% remboursé)'}
-                    {enterpriseType === 'LARGE_ENTERPRISE' && '200 000 EUR (50% remboursé)'}
-                  </p>
+                  {isLU && (
+                    <p className="text-xs text-muted-foreground">
+                      Plafond éligible:{' '}
+                      {enterpriseType === 'SMALL_ENTERPRISE' && '50 000 EUR (80% remboursé)'}
+                      {enterpriseType === 'MEDIUM_ENTERPRISE' && '100 000 EUR (60% remboursé)'}
+                      {enterpriseType === 'LARGE_ENTERPRISE' && '200 000 EUR (50% remboursé)'}
+                    </p>
+                  )}
+                  {isFR && (
+                    <p className="text-xs text-muted-foreground">
+                      {enterpriseType === 'SMALL_ENTERPRISE' && 'TPE/PE: 50% remboursé (max 200 000 EUR)'}
+                      {enterpriseType === 'MEDIUM_ENTERPRISE' && 'ME: 30% remboursé (max 200 000 EUR)'}
+                      {enterpriseType === 'LARGE_ENTERPRISE' && 'Non éligible: ADEME Tremplin réservé aux PME/TPE'}
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>

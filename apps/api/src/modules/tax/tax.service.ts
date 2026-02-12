@@ -3,6 +3,7 @@ import {
   GreenTaxEngine,
   StrategyRegistry,
   Luxembourg2026Strategy,
+  France2026Strategy,
 } from '@ggt/engine';
 import type { CalculationInput, CalculationResult } from '@ggt/shared';
 import { PrismaService } from '../../common/prisma.service';
@@ -18,7 +19,7 @@ export class TaxService {
   ) {
     const registry = new StrategyRegistry();
     registry.register(new Luxembourg2026Strategy());
-    // Register additional strategies here as they are implemented
+    registry.register(new France2026Strategy());
     this.engine = new GreenTaxEngine(registry);
   }
 

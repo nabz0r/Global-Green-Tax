@@ -30,9 +30,31 @@ async function main() {
   });
   console.log(`  Country: ${luxembourg.name} (${luxembourg.code}) ✓`);
 
+  // ─── Load France 2026 data ────────────────────────────────────────
+  const frDataPath = path.resolve(__dirname, '../../../data/schemas/FR-2026.json');
+  const frData = JSON.parse(fs.readFileSync(frDataPath, 'utf-8'));
+
+  console.log(`Loaded: ${frData.metadata.countryName} (${frData.metadata.countryCode}) – FY${frData.metadata.fiscalYear}`);
+
+  const france = await prisma.country.upsert({
+    where: { code: 'FR' },
+    update: {
+      taxRules: frData,
+      isActive: true,
+      updatedAt: new Date(),
+    },
+    create: {
+      code: 'FR',
+      name: 'France',
+      currency: 'EUR',
+      isActive: true,
+      taxRules: frData,
+    },
+  });
+  console.log(`  Country: ${france.name} (${france.code}) ✓`);
+
   // ─── Seed additional countries (stubs for future strategies) ────────
   const countries = [
-    { code: 'FR', name: 'France', currency: 'EUR' },
     { code: 'DE', name: 'Germany', currency: 'EUR' },
     { code: 'BE', name: 'Belgium', currency: 'EUR' },
     { code: 'NL', name: 'Netherlands', currency: 'EUR' },
@@ -161,7 +183,105 @@ async function main() {
       engineVersion: '0.1.0',
     },
   });
-  console.log(`  Sample Calculation seeded ✓`);
+  console.log(`  Sample Calculation (LU) seeded ✓`);
+
+  // ─── Seed French demo organization ────────────────────────────────
+  const frOrg = await prisma.organization.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000002' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000002',
+      name: 'ÉcoSolutions France SAS',
+      countryCode: 'FR',
+      vatNumber: 'FR12345678901',
+      sector: 'Energy',
+    },
+  });
+  console.log(`  Demo Org (FR): ${frOrg.name} ✓`);
+
+  // ─── Seed French sample calculation ───────────────────────────────
+  const frSampleInput = {
+    organizationId: frOrg.id,
+    countryCode: 'FR',
+    fiscalYear: 2026,
+    co2Tonnes: 800,
+    revenue: 5_000_000,
+    employeeCount: 30,
+    energyConsumptionKwh: 400_000,
+    renewableEnergyPercent: 40,
+    emissionsByScope: { SCOPE_1: 480, SCOPE_2: 240, SCOPE_3: 80 },
+    metadata: {
+      solarCapacityKWp: 20,
+      selfConsumptionRatio: 0.60,
+      evCount: 3,
+      evCountVans: 2,
+      sustainabilityAuditExpense: 50_000,
+    },
+  };
+
+  const frSampleResult = {
+    organizationId: frOrg.id,
+    countryCode: 'FR',
+    fiscalYear: 2026,
+    calculatedAt: new Date().toISOString(),
+    currency: 'EUR',
+    lineItems: [
+      {
+        code: 'FR-CCE-2026',
+        label: 'Contribution Climat Énergie',
+        amount: -35_680,
+        currency: 'EUR',
+        description: '800t x 44.60 EUR/t = 35 680 EUR',
+      },
+      {
+        code: 'FR-IS-2026',
+        label: 'IS + CVAE',
+        amount: -129_875,
+        currency: 'EUR',
+        description: 'PME: IS 42500*15% + 457500*25% + CVAE 0.09%',
+      },
+      {
+        code: 'FR-PV-PRIME-2026',
+        label: 'Prime Autoconsommation PV',
+        amount: 2_260,
+        currency: 'EUR',
+        description: '9 kWp x 80 EUR + 11 kWp x 140 EUR = 2 260 EUR',
+      },
+      {
+        code: 'FR-BONUS-ECO-2026',
+        label: 'Bonus Écologique',
+        amount: 17_000,
+        currency: 'EUR',
+        description: '3 VP x 3 000 EUR + 2 VUL x 4 000 EUR',
+      },
+      {
+        code: 'FR-ADEME-TREMPLIN-2026',
+        label: 'ADEME Tremplin',
+        amount: 25_000,
+        currency: 'EUR',
+        description: 'TPE/PE: 50% de 50 000 EUR = 25 000 EUR',
+      },
+    ],
+    netAmount: -121_295,
+    engineVersion: '0.1.0',
+  };
+
+  await prisma.calculation.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000200' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000200',
+      organizationId: frOrg.id,
+      countryCode: 'FR',
+      fiscalYear: 2026,
+      input: frSampleInput as any,
+      result: frSampleResult as any,
+      netAmount: -121_295,
+      currency: 'EUR',
+      engineVersion: '0.1.0',
+    },
+  });
+  console.log(`  Sample Calculation (FR) seeded ✓`);
 
   console.log('\nSeed complete.');
 }

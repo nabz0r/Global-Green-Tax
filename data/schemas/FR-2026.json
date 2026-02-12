@@ -1,0 +1,56 @@
+{
+  "metadata": {
+    "countryCode": "FR",
+    "countryName": "France",
+    "fiscalYear": 2026,
+    "currency": "EUR",
+    "lastUpdated": "2026-02-12"
+  },
+  "taxRules": {
+    "carbonTax": {
+      "unit": "ton_CO2",
+      "pricePerUnit": 44.60,
+      "description": "Contribution Climat Énergie (CCE) - Estimation 2026"
+    },
+    "corporateTax": {
+      "standardRate": 0.25,
+      "reducedRatePME": 0.15,
+      "cvaeRate2026": 0.0009
+    }
+  },
+  "subsidies": {
+    "solar_autoconsumption": {
+      "id": "FR_PV_PRIME_2026",
+      "label": "Prime à l'Autoconsommation (T1 2026)",
+      "rates": [
+        { "range": "0-9kWp", "amountPerKWp": 80, "payout": "1_year" },
+        { "range": "9-36kWp", "amountPerKWp": 140, "payout": "5_years_split" },
+        { "range": "36-100kWp", "amountPerKWp": 70, "payout": "5_years_split" }
+      ],
+      "feedInTariffSurplus": 0.0536
+    },
+    "mobility_bonus": {
+      "id": "FR_BONUS_ECO_2026",
+      "label": "Bonus Écologique Entreprises",
+      "grants": [
+        { "vehicleType": "VAN_ELECTRIC", "amount": 4000 },
+        { "vehicleType": "CAR_ELECTRIC", "amount": 3000 }
+      ],
+      "tva_deductibility": 1.0
+    },
+    "ademe_decarbonation": {
+      "id": "ADEME_TREMPLIN_2026",
+      "label": "ADEME Tremplin Transition Écologique PME",
+      "rates": {
+        "SMALL_ENTERPRISE": 0.50,
+        "MEDIUM_ENTERPRISE": 0.30
+      },
+      "maxGrant": 200000
+    }
+  },
+  "energyRates": {
+    "gridElectricityAvg": 0.24,
+    "dieselAvg": 1.78,
+    "gasAvg": 0.11
+  }
+}
