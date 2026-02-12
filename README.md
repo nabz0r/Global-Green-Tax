@@ -34,27 +34,28 @@ Global Green Tax follows a **tiered SaaS subscription model** designed to scale 
 
 ### Pricing Plans
 
-| | Starter | Professional | Enterprise |
-|---|---------|-------------|------------|
-| **Target** | PME / SMEs | Fiduciaries & Accountants | Large Enterprises |
-| **Price** | **99 €/mois** | **499 €/mois** | **Sur mesure** |
-| **Countries** | 1 jurisdiction | All jurisdictions | All jurisdictions |
-| **Simulations** | 5 / month | Unlimited | Unlimited |
-| **PDF Export** | 5 / month | Unlimited | Unlimited |
-| **White-label** | — | Branded PDF & portal | Full white-label |
-| **API Access** | — | REST API | REST + Webhooks + SDK |
-| **SSO** | — | — | SAML / OIDC SSO |
-| **Support** | Email | Priority email + chat | Dedicated CSM |
-| **Deployment** | Cloud | Cloud | Cloud / On-premise |
-| **Users** | 2 seats | 10 seats | Unlimited |
-| **SLA** | — | 99.5% uptime | 99.9% + custom SLA |
+| | Freemium | Starter | Professional | Enterprise |
+|---|---------|---------|-------------|------------|
+| **Target** | Découverte | PME / SMEs | Fiduciaries & Accountants | Large Enterprises |
+| **Price** | **0 €** | **99 €/mois** | **499 €/mois** | **Sur mesure** |
+| **Countries** | 1 jurisdiction | 1 jurisdiction | All jurisdictions | All jurisdictions |
+| **Simulations** | 3 / month | 5 / month | Unlimited | Unlimited |
+| **PDF Export** | — (blocked) | 5 / month | Unlimited | Unlimited |
+| **Fiscal Deep Dive** | — (blocked) | — | Full analysis | Full analysis |
+| **White-label** | — | — | Branded PDF & portal | Full white-label |
+| **API Access** | — | — | REST API | REST + Webhooks + SDK |
+| **SSO** | — | — | — | SAML / OIDC SSO |
+| **Support** | — | Email | Priority email + chat | Dedicated CSM |
+| **Deployment** | Cloud | Cloud | Cloud | Cloud / On-premise |
+| **Users** | 1 seat | 2 seats | 10 seats | Unlimited |
+| **SLA** | — | — | 99.5% uptime | 99.9% + custom SLA |
 
 ### Revenue Drivers
 
 ```mermaid
 graph LR
     subgraph Acquisition
-        FREEMIUM["Free Trial<br/>14 jours"]
+        FREE["Freemium<br/>0€ — 3 sims/mois"]
         STARTER["Starter<br/>99€/mois"]
     end
 
@@ -66,11 +67,11 @@ graph LR
         ENT["Enterprise<br/>Custom"]
     end
 
-    FREEMIUM -->|"Conversion"| STARTER
+    FREE -->|"Conversion:<br/>PDF, Deep Dive"| STARTER
     STARTER -->|"Upsell:<br/>multi-pays, API"| PRO
     PRO -->|"Upsell:<br/>SSO, on-prem"| ENT
 
-    style FREEMIUM fill:#e8f5e9
+    style FREE fill:#f5f5f5
     style STARTER fill:#c8e6c9
     style PRO fill:#a5d6a7
     style ENT fill:#66bb6a,color:#fff
@@ -80,6 +81,7 @@ graph LR
 
 | Metric | Target |
 |--------|--------|
+| **Freemium → Starter conversion** | > 15% |
 | **MRR per Starter** | 99 € |
 | **MRR per Professional** | 499 € |
 | **ACV Enterprise** | 15,000 – 50,000 € |
@@ -98,14 +100,17 @@ graph TB
         SIM[Simulation Page<br/>Shadcn/UI + Sliders]
         EC[Engine Client<br/>Instant Preview]
         PDF[PDF Report<br/>@react-pdf/renderer]
+        ADMIN_UI[Admin Dashboard<br/>KPIs + Charts + Users]
     end
 
     subgraph API["API — NestJS"]
         GW[REST Gateway<br/>api/v1/tax/*]
         AUTH[Clerk Auth Guard]
         TENANT[Tenant Guard]
-        QUOTA[Subscription Guard<br/>Quota Enforcement]
+        QUOTA[Subscription Guard<br/>Quota + Feature Gating]
         ZOD[Zod Validation Pipe]
+        ADMIN_API[Admin API<br/>api/admin/*]
+        ADMIN_G[Admin Guard<br/>Role ADMIN/OWNER]
     end
 
     subgraph Engine["Calculation Engine"]
@@ -122,7 +127,12 @@ graph TB
     subgraph Data["Data Layer"]
         PG[(PostgreSQL 16<br/>Multi-tenant)]
         RD[(Redis 7<br/>LRU Cache)]
+        DL[(MarketAnalytic<br/>Data Lake)]
         JSON["/data/schemas/<br/>6 country schemas"]
+    end
+
+    subgraph AI["AI / ML Pipeline"]
+        EXPORT[export-analytics.ts<br/>JSONL Export]
     end
 
     UI --> EC
@@ -130,16 +140,21 @@ graph TB
     SIM --> PDF
     SIM -->|POST /api/v1/tax/calculate| GW
     GW --> AUTH --> TENANT --> QUOTA --> ZOD --> ENG
+    ADMIN_UI -->|GET /api/admin/*| ADMIN_API
+    ADMIN_API --> AUTH --> ADMIN_G
     ENG --> REG
     REG --> LU & FR & DE & BE & ES & PT
     ENG --> PG
     ENG --> RD
+    ENG -.->|analytics ingestion| DL
+    DL -.->|batch export| EXPORT
     JSON -.->|seed| PG
 
     style Client fill:#e8f5e9,stroke:#2e7d32
     style API fill:#e3f2fd,stroke:#1565c0
     style Engine fill:#fff3e0,stroke:#ef6c00
     style Data fill:#fce4ec,stroke:#c62828
+    style AI fill:#f3e5f5,stroke:#7b1fa2
 ```
 
 ## Strategy Pattern
@@ -221,6 +236,7 @@ sequenceDiagram
     participant Engine as GreenTaxEngine
     participant Redis as Redis Cache
     participant DB as PostgreSQL
+    participant DL as MarketAnalytic
 
     User->>Web: Adjust sliders
     Web->>Web: simulateLocally() [instant]
@@ -249,14 +265,20 @@ sequenceDiagram
         Engine->>Engine: Run jurisdiction calc
         Engine-->>API: CalculationResult
         API->>DB: Persist calculation
+        API->>DL: Ingest MarketAnalytic (async)
         API->>Redis: Cache result (1h TTL)
     end
     API-->>Web: CalculationResult
     Web-->>User: Display results
 
     User->>Web: Click "Exporter PDF"
-    Web->>Web: Generate PDF client-side
-    Web-->>User: Download rapport-fiscal-vert.pdf
+    alt Freemium plan
+        Web->>API: Check PDF quota
+        API-->>Web: 403 Upgrade Required
+    else Paid plan
+        Web->>Web: Generate PDF client-side
+        Web-->>User: Download rapport-fiscal-vert.pdf
+    end
 ```
 
 ---
@@ -268,14 +290,17 @@ sequenceDiagram
 | **Monorepo** | Turborepo + npm workspaces | Build orchestration, caching |
 | **Frontend** | Next.js 15, React 19, Shadcn/UI | SSR, interactive simulation |
 | **Dashboard** | Recharts, Framer Motion | Charts, animations, transitions |
+| **Admin** | Recharts (Area/Pie/Bar) | Admin KPIs, trends, user management |
 | **Theme** | next-themes | Dark/light mode, emerald/slate palette |
 | **API** | NestJS 10, Prisma 6 | REST endpoints, ORM |
 | **Engine** | TypeScript (pure) | Jurisdiction calculations |
 | **Auth** | Clerk | SSO, JWT, multi-tenant |
 | **Database** | PostgreSQL 16 | Multi-tenant data, JSONB |
+| **Data Lake** | PostgreSQL (MarketAnalytic) | Analytics ingestion, market intelligence |
 | **Cache** | Redis 7 | LRU result caching |
 | **Validation** | Zod | Runtime schema validation |
 | **PDF** | @react-pdf/renderer | Client-side report generation |
+| **AI/ML** | JSONL export script | Fine-tuning data pipeline |
 | **Proxy** | Traefik v3 | Reverse proxy, Let's Encrypt |
 | **Testing** | Vitest | Unit tests for engine |
 
@@ -288,22 +313,28 @@ Global-Green-Tax/
 ├── apps/
 │   ├── api/                    # NestJS REST API
 │   │   ├── prisma/
-│   │   │   ├── schema.prisma   # Multi-tenant data model
-│   │   │   └── seed.ts         # Database seeder (6 countries)
+│   │   │   ├── schema.prisma   # Multi-tenant data model + MarketAnalytic
+│   │   │   └── seed.ts         # Database seeder (6 countries, 4 plans, analytics)
 │   │   ├── src/
 │   │   │   ├── common/         # Guards, middleware, services
-│   │   │   │   ├── guards/     # ClerkAuth + Tenant + Subscription guards
+│   │   │   │   ├── guards/     # ClerkAuth + Tenant + Subscription + Admin guards
 │   │   │   │   ├── middleware/ # Zod validation pipe
 │   │   │   │   ├── prisma.*    # Database module/service
 │   │   │   │   └── redis.*     # Cache module/service
 │   │   │   └── modules/
 │   │   │       ├── auth/       # Authentication module
-│   │   │       ├── tax/        # Tax calculation module
-│   │   │       └── subscription/ # Plan & quota management
+│   │   │       ├── tax/        # Tax calculation + analytics ingestion
+│   │   │       ├── subscription/ # Plan & quota management (Freemium gating)
+│   │   │       └── admin/      # Admin dashboard API (summary, users, plans)
 │   │   └── Dockerfile
 │   └── web/                    # Next.js 15 Frontend
 │       ├── src/
 │       │   ├── app/
+│       │   │   ├── admin/              # Admin dashboard (role-protected)
+│       │   │   │   ├── layout.tsx      # Admin layout with role check
+│       │   │   │   ├── page.tsx        # KPIs, charts, trends
+│       │   │   │   └── users/
+│       │   │   │       └── page.tsx    # User management DataTable
 │       │   │   ├── dashboard/
 │       │   │   │   ├── page.tsx        # Overview (charts, KPIs)
 │       │   │   │   ├── simulate/       # Simulation page
@@ -334,6 +365,8 @@ Global-Green-Tax/
 │   │       ├── types.ts        # CalculationInput, LineItem, etc.
 │   │       └── schemas.ts      # Zod validation schemas
 │   └── ui/                     # Shared UI utilities
+├── scripts/
+│   └── export-analytics.ts    # JSONL export for AI/ML fine-tuning
 ├── data/
 │   └── schemas/                # Country tax rule definitions (6 countries)
 ├── docs/
@@ -413,6 +446,65 @@ Global-Green-Tax/
 | Incentivo Mobilidade | Subsidy | EV conversion subsidy |
 | IAPMEI Verde | Subsidy | Green SME investment fund |
 | Energy Savings | Savings | 1,350 kWh/kWp |
+
+---
+
+## Admin Dashboard
+
+The platform includes a protected admin interface at `/admin` accessible only to users with `ADMIN` or `OWNER` roles (verified via Clerk metadata).
+
+### Features
+
+| View | Description |
+|------|-------------|
+| **KPI Cards** | MRR, total users, simulations (30 days), data lake entries |
+| **Simulation Trend** | Recharts AreaChart — 30-day daily simulation volume |
+| **Plan Distribution** | PieChart — organizations by plan (Freemium/Starter/Pro/Enterprise) |
+| **Top Investments** | Horizontal BarChart — most simulated investment types |
+| **Country Volume** | Progress bars — simulation volume by country |
+| **User Management** | Searchable DataTable with plan change dropdown per user |
+
+### Admin API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/analytics/summary` | Dashboard KPIs and chart data |
+| `GET` | `/api/admin/users?search=&page=&limit=` | Paginated user list |
+| `POST` | `/api/admin/users/:id/toggle-plan` | Change a user's organization plan |
+
+All admin endpoints are protected by `ClerkAuthGuard` + `AdminGuard` (role verification in DB).
+
+---
+
+## MarketAnalytic Data Lake
+
+Every simulation automatically ingests structured analytics into the `MarketAnalytic` table. This provides market intelligence data for:
+
+- **Admin Dashboard** — aggregated KPIs, trends, and country/investment breakdowns
+- **AI/ML Pipeline** — JSONL export for fine-tuning language models on green tax advisory
+- **Business Intelligence** — investment type classification, subsidy volume tracking
+
+### Investment Type Classification
+
+The TaxService classifies each simulation's line items into categories using pattern matching:
+
+| Type | Matched Codes |
+|------|---------------|
+| `SOLAR` | PV, SOLAR, KFW, EDIFICIO |
+| `EV` | EV, MOVES, BONUS-ECO, UMWELT, FLEET, VE |
+| `AUDIT` | F4S, ADEME, BAFA, AMURE, AUDIT, IAPMEI |
+| `ENERGY_EFFICIENCY` | ENERGY, IBI, ECOPREMIE |
+| `GENERAL` | Fallback when no pattern matches |
+
+### AI/ML Export
+
+Export the data lake to JSONL format for fine-tuning:
+
+```bash
+npx tsx scripts/export-analytics.ts --output analytics.jsonl --limit 10000
+```
+
+Each record produces a structured prompt/completion pair compatible with OpenAI and Vertex AI fine-tuning formats.
 
 ---
 
@@ -525,16 +617,19 @@ erDiagram
     Organization ||--o{ Calculation : "owns"
     Organization }o--|| Country : "operates in"
     Organization }o--|| Plan : "subscribes to"
+    User ||--o{ MarketAnalytic : "generates"
 
     Plan {
         uuid id PK
-        string name UK "STARTER|PROFESSIONAL|ENTERPRISE"
-        int priceEuroCents "9900|49900|custom"
-        int maxSimulationsPerMonth "5|null(unlimited)|null"
-        int maxCountries "1|null(unlimited)|null"
-        boolean whiteLabel "false|true|true"
-        boolean apiAccess "false|true|true"
-        boolean ssoEnabled "false|false|true"
+        string name UK "FREEMIUM|STARTER|PROFESSIONAL|ENTERPRISE"
+        int priceEuroCents "0|9900|49900|custom"
+        int maxSimulationsPerMonth "3|5|null|null"
+        int maxPdfExportsPerMonth "0|5|null|null"
+        int maxCountries "1|1|null|null"
+        boolean whiteLabel "false|false|true|true"
+        boolean apiAccess "false|false|true|true"
+        boolean ssoEnabled "false|false|false|true"
+        boolean fiscalDeepDive "false|false|true|true"
     }
 
     Organization {
@@ -545,6 +640,7 @@ erDiagram
         string sector
         string planId FK
         int simulationsUsedThisMonth
+        int pdfExportsUsedThisMonth
         datetime currentPeriodStart
     }
 
@@ -577,6 +673,20 @@ erDiagram
         decimal netAmount
         string currency
         string engineVersion
+        datetime createdAt
+    }
+
+    MarketAnalytic {
+        uuid id PK
+        string countryCode "ISO 3166-1"
+        string sector "optional"
+        string investmentType "SOLAR|EV|AUDIT|ENERGY_EFFICIENCY"
+        decimal amount
+        decimal estimatedGrant
+        decimal co2Tonnes "optional"
+        int employeeCount "optional"
+        decimal revenue "optional"
+        uuid userId FK "optional"
         datetime createdAt
     }
 ```

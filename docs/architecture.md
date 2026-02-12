@@ -10,6 +10,9 @@
 - [Data Flow](#data-flow)
 - [Multi-Tenancy](#multi-tenancy)
 - [Subscription & Quota Management](#subscription--quota-management)
+- [MarketAnalytic Data Lake](#marketanalytic-data-lake)
+- [Admin Module](#admin-module)
+- [AI/ML Pipeline](#aiml-pipeline)
 - [Authentication & Authorization](#authentication--authorization)
 - [Caching Strategy](#caching-strategy)
 - [Client-Side Engine](#client-side-engine)
@@ -45,8 +48,11 @@ graph TB
         CTRL[TaxController<br/>api/v1/tax/*]
         AUTH_G[ClerkAuthGuard<br/>JWT Verification]
         TENANT_G[TenantGuard<br/>Org Resolution]
+        SUB_G[SubscriptionGuard<br/>Quota + Feature Gating]
         ZOD_P[ZodValidationPipe<br/>Input Validation]
-        SVC[TaxService<br/>Orchestration]
+        SVC[TaxService<br/>Orchestration + Analytics]
+        ADMIN_C[AdminController<br/>api/admin/*]
+        ADMIN_G[AdminGuard<br/>Role ADMIN/OWNER]
     end
 
     subgraph EngineCore["@ggt/engine"]
@@ -54,12 +60,16 @@ graph TB
         REG[StrategyRegistry]
         LU[Luxembourg2026]
         FR[France2026]
-        FUT[Future...]
+        DE[Germany2026]
+        BE[Belgium2026]
+        ES[Spain2026]
+        PT[Portugal2026]
     end
 
     subgraph Storage
         PG[(PostgreSQL 16<br/>JSONB)]
         RD[(Redis 7<br/>LRU 256MB)]
+        DL[(MarketAnalytic<br/>Data Lake)]
     end
 
     Browser --> Traefik
@@ -69,9 +79,11 @@ graph TB
     Traefik --> Backend
 
     Frontend --> Backend
-    CTRL --> AUTH_G --> TENANT_G --> ZOD_P --> SVC
+    CTRL --> AUTH_G --> TENANT_G --> SUB_G --> ZOD_P --> SVC
+    ADMIN_C --> AUTH_G --> ADMIN_G
     SVC --> ENG
-    ENG --> REG --> LU & FR & FUT
+    SVC -.->|analytics| DL
+    ENG --> REG --> LU & FR & DE & BE & ES & PT
     SVC --> PG
     SVC --> RD
 ```
@@ -80,12 +92,20 @@ graph TB
 
 ## Economic Model
 
-Global Green Tax follows a **tiered SaaS subscription model** with three plans designed to capture value across the full spectrum of enterprise sizes.
+Global Green Tax follows a **4-tier SaaS subscription model** with a Freemium entry point designed to maximize top-of-funnel acquisition and conversion.
 
 ### Plan Comparison
 
 ```mermaid
 graph TD
+    subgraph Freemium["⚪ Freemium — 0 €"]
+        F1["Target: Découverte"]
+        F2["1 juridiction"]
+        F3["3 simulations/mois"]
+        F4["PDF/Deep Dive: bloqués (403)"]
+        F5["1 utilisateur"]
+    end
+
     subgraph Starter["🟢 Starter — 99 €/mois"]
         S1["Target: PME / SMEs"]
         S2["1 juridiction"]
@@ -100,57 +120,61 @@ graph TD
         P2["Toutes juridictions"]
         P3["Simulations illimitées"]
         P4["Export PDF illimité"]
-        P5["10 utilisateurs"]
-        P6["White-label: PDF & portail"]
-        P7["API REST"]
-        P8["Support prioritaire + chat"]
-        P9["SLA 99.5%"]
+        P5["Fiscal Deep Dive"]
+        P6["10 utilisateurs"]
+        P7["White-label: PDF & portail"]
+        P8["API REST"]
+        P9["Support prioritaire + chat"]
+        P10["SLA 99.5%"]
     end
 
     subgraph Enterprise["🟡 Enterprise — Sur mesure"]
         E1["Target: Grands groupes"]
         E2["Toutes juridictions"]
         E3["Simulations illimitées"]
-        E4["White-label complet"]
-        E5["API REST + Webhooks + SDK"]
-        E6["SSO SAML / OIDC"]
-        E7["Déploiement On-Premise"]
-        E8["Utilisateurs illimités"]
-        E9["CSM dédié"]
-        E10["SLA 99.9%"]
+        E4["Fiscal Deep Dive"]
+        E5["White-label complet"]
+        E6["API REST + Webhooks + SDK"]
+        E7["SSO SAML / OIDC"]
+        E8["Déploiement On-Premise"]
+        E9["Utilisateurs illimités"]
+        E10["CSM dédié"]
+        E11["SLA 99.9%"]
     end
 
+    Freemium -->|"Conversion: PDF, Deep Dive"| Starter
     Starter -->|"Upsell: multi-pays, API"| Professional
     Professional -->|"Upsell: SSO, on-prem"| Enterprise
 ```
 
 ### Detailed Feature Matrix
 
-| Feature | Starter (99 €/mois) | Professional (499 €/mois) | Enterprise (Custom) |
-|---------|---------------------|---------------------------|---------------------|
-| **Jurisdictions** | 1 pays | Tous les pays | Tous les pays |
-| **Simulations** | 5 / mois | Illimité | Illimité |
-| **Export PDF** | 5 / mois | Illimité | Illimité |
-| **Utilisateurs** | 2 sièges | 10 sièges | Illimité |
-| **White-label** | — | PDF & portail brandé | White-label complet |
-| **API Access** | — | REST API | REST + Webhooks + SDK |
-| **SSO** | — | — | SAML / OIDC |
-| **Support** | Email (48h) | Email + chat prioritaire | CSM dédié |
-| **SLA** | — | 99.5% uptime | 99.9% + SLA custom |
-| **Déploiement** | Cloud mutualisé | Cloud | Cloud / On-premise |
-| **Historique** | 3 mois | 24 mois | Illimité |
-| **Audit trail** | — | Logs d'accès | Logs complets + SIEM |
+| Feature | Freemium (0 €) | Starter (99 €/mois) | Professional (499 €/mois) | Enterprise (Custom) |
+|---------|---------------|---------------------|---------------------------|---------------------|
+| **Jurisdictions** | 1 pays | 1 pays | Tous les pays | Tous les pays |
+| **Simulations** | 3 / mois | 5 / mois | Illimité | Illimité |
+| **Export PDF** | Bloqué (403) | 5 / mois | Illimité | Illimité |
+| **Fiscal Deep Dive** | Bloqué (403) | — | Complet | Complet |
+| **Utilisateurs** | 1 siège | 2 sièges | 10 sièges | Illimité |
+| **White-label** | — | — | PDF & portail brandé | White-label complet |
+| **API Access** | — | — | REST API | REST + Webhooks + SDK |
+| **SSO** | — | — | — | SAML / OIDC |
+| **Support** | — | Email (48h) | Email + chat prioritaire | CSM dédié |
+| **SLA** | — | — | 99.5% uptime | 99.9% + SLA custom |
+| **Déploiement** | Cloud | Cloud | Cloud | Cloud / On-premise |
+| **Historique** | 1 mois | 3 mois | 24 mois | Illimité |
+| **Audit trail** | — | — | Logs d'accès | Logs complets + SIEM |
 
 ### Subscription Lifecycle
 
 ```mermaid
 stateDiagram-v2
-    [*] --> TRIAL: Inscription
-    TRIAL --> STARTER: Souscription
-    TRIAL --> EXPIRED: 14 jours sans paiement
-    EXPIRED --> STARTER: Paiement tardif
+    [*] --> FREEMIUM: Inscription
+    FREEMIUM --> STARTER: Conversion (PDF, Deep Dive)
+    FREEMIUM --> FREEMIUM: 3 sims/mois max
 
     STARTER --> PROFESSIONAL: Upgrade
+    STARTER --> FREEMIUM: Downgrade
     STARTER --> CHURNED: Annulation
 
     PROFESSIONAL --> ENTERPRISE: Upgrade
@@ -160,7 +184,7 @@ stateDiagram-v2
     ENTERPRISE --> PROFESSIONAL: Downgrade
     ENTERPRISE --> CHURNED: Annulation
 
-    CHURNED --> STARTER: Réactivation
+    CHURNED --> FREEMIUM: Réactivation
     CHURNED --> [*]
 ```
 
@@ -185,7 +209,11 @@ sequenceDiagram
     SubService->>DB: SELECT plan, usage, period
     DB-->>SubService: Plan limits + current usage
 
-    alt Within quota
+    alt Feature blocked (Freemium)
+        SubService-->>SubGuard: 🚫 Feature unavailable
+        SubGuard-->>Client: 403 Forbidden (Upgrade Required)
+        Note over Client: PDF Export & Fiscal Deep Dive blocked on Freemium
+    else Within quota
         SubService-->>SubGuard: ✅ Allowed
         SubGuard->>Controller: Proceed
         Controller-->>Client: 200 OK
@@ -337,8 +365,10 @@ flowchart LR
     REG["StrategyRegistry"]
     REG -->|"LU:2026"| LU["Luxembourg2026Strategy"]
     REG -->|"FR:2026"| FR["France2026Strategy"]
-    REG -->|"DE:2026"| DE["Germany2026Strategy<br/>(future)"]
-    REG -->|"BE:2027"| BE["Belgium2027Strategy<br/>(future)"]
+    REG -->|"DE:2026"| DE["Germany2026Strategy"]
+    REG -->|"BE:2026"| BE["Belgium2026Strategy"]
+    REG -->|"ES:2026"| ES["Spain2026Strategy"]
+    REG -->|"PT:2026"| PT["Portugal2026Strategy"]
 ```
 
 ### Luxembourg 2026 Calculation Flow
@@ -495,15 +525,16 @@ erDiagram
 
     Plan {
         uuid id PK
-        string name UK "STARTER|PROFESSIONAL|ENTERPRISE"
-        int priceEuroCents "Monthly price in cents"
-        int maxSimulationsPerMonth "null = unlimited"
-        int maxPdfExportsPerMonth "null = unlimited"
-        int maxCountries "null = unlimited"
-        int maxUsers "null = unlimited"
+        string name UK "FREEMIUM|STARTER|PROFESSIONAL|ENTERPRISE"
+        int priceEuroCents "0|9900|49900|custom"
+        int maxSimulationsPerMonth "3|5|null|null"
+        int maxPdfExportsPerMonth "0|5|null|null"
+        int maxCountries "1|1|null|null"
+        int maxUsers "1|2|10|null"
         boolean whiteLabel
         boolean apiAccess
         boolean ssoEnabled
+        boolean fiscalDeepDive "false|false|true|true"
     }
 
     Organization {
@@ -526,6 +557,10 @@ class SubscriptionService {
   checkSimulationQuota(orgId: string): Promise<QuotaCheckResult>
   checkPdfExportQuota(orgId: string): Promise<QuotaCheckResult>
 
+  // Feature gating (Freemium → 403 Forbidden)
+  assertPdfExportAllowed(orgId: string): Promise<void>     // throws 403 if limit === 0
+  assertFiscalDeepDiveAllowed(orgId: string): Promise<void> // throws 403 if !fiscalDeepDive
+
   // Usage tracking (called after successful action)
   incrementSimulationUsage(orgId: string): Promise<void>
   incrementPdfExportUsage(orgId: string): Promise<void>
@@ -536,6 +571,18 @@ class SubscriptionService {
 }
 ```
 
+### Freemium Feature Gating
+
+The FREEMIUM plan (Tier 0) has access to basic simulations but blocks premium features:
+
+| Feature | Freemium Behavior | HTTP Status |
+|---------|-------------------|-------------|
+| **Simulations** | 3/month allowed | 402 when exceeded |
+| **PDF Export** | Completely blocked | 403 Forbidden |
+| **Fiscal Deep Dive** | Completely blocked | 403 Forbidden |
+
+The distinction between 402 (quota exceeded) and 403 (feature not available) helps the frontend display appropriate upgrade prompts.
+
 ### Quota Reset Flow
 
 ```mermaid
@@ -544,6 +591,199 @@ flowchart LR
     CHECK --> RESET["Reset counters:<br/>simulationsUsed = 0<br/>pdfExportsUsed = 0"]
     RESET --> UPDATE["Update<br/>currentPeriodStart"]
 ```
+
+---
+
+## MarketAnalytic Data Lake
+
+Every tax simulation automatically ingests structured analytics into the `MarketAnalytic` table. This creates a growing data lake of green investment intelligence across all jurisdictions.
+
+### Data Model
+
+```mermaid
+erDiagram
+    User ||--o{ MarketAnalytic : "generates"
+
+    MarketAnalytic {
+        uuid id PK
+        string countryCode "ISO 3166-1 (2 chars)"
+        string sector "optional — org sector"
+        string investmentType "SOLAR|EV|AUDIT|ENERGY_EFFICIENCY|GENERAL"
+        decimal amount "Investment amount"
+        decimal estimatedGrant "Calculated subsidy"
+        decimal co2Tonnes "optional — CO2 footprint"
+        int employeeCount "optional"
+        decimal revenue "optional"
+        uuid userId FK "optional — link to User"
+        datetime createdAt "auto-generated"
+    }
+```
+
+**Indexes:** `countryCode`, `investmentType`, `createdAt`, `sector` — optimized for aggregation queries.
+
+### Analytics Ingestion Flow
+
+```mermaid
+sequenceDiagram
+    participant TaxService
+    participant Engine as GreenTaxEngine
+    participant Classifier as classifyInvestmentTypes()
+    participant DB as PostgreSQL (MarketAnalytic)
+
+    TaxService->>Engine: calculate(input)
+    Engine-->>TaxService: CalculationResult (lineItems)
+    TaxService->>TaxService: Persist calculation
+    TaxService->>Classifier: Classify line item codes
+    Classifier-->>TaxService: investmentTypes[]
+    loop For each investmentType
+        TaxService->>DB: INSERT MarketAnalytic record
+    end
+    Note over DB: Analytics never blocks calculation (try/catch)
+```
+
+### Investment Type Classification
+
+The `classifyInvestmentTypes()` method uses pattern matching on line item codes:
+
+| Type | Matched Code Patterns |
+|------|----------------------|
+| `SOLAR` | PV, SOLAR, KFW, EDIFICIO |
+| `EV` | EV, MOVES, BONUS-ECO, UMWELT, FLEET, VE |
+| `AUDIT` | F4S, ADEME, BAFA, AMURE, AUDIT, IAPMEI |
+| `ENERGY_EFFICIENCY` | ENERGY, IBI, ECOPREMIE |
+| `GENERAL` | Fallback when no pattern matches |
+
+---
+
+## Admin Module
+
+The Admin module provides a protected dashboard and API for platform operators to monitor KPIs, manage users, and change subscription plans.
+
+### Architecture
+
+```mermaid
+graph TB
+    subgraph Frontend["Admin Frontend (/admin)"]
+        LAYOUT[AdminLayout<br/>Clerk role check]
+        DASH[Dashboard<br/>KPIs + Charts]
+        USERS[User Management<br/>DataTable + Plan Toggle]
+    end
+
+    subgraph API["Admin API"]
+        CTRL[AdminController<br/>api/admin/*]
+        GUARD[AdminGuard<br/>Role: ADMIN/OWNER]
+        SVC[AdminService<br/>Aggregation queries]
+    end
+
+    subgraph Data
+        PG[(PostgreSQL)]
+        DL[(MarketAnalytic)]
+    end
+
+    LAYOUT --> DASH & USERS
+    DASH -->|GET /summary| CTRL
+    USERS -->|GET /users| CTRL
+    USERS -->|POST /toggle-plan| CTRL
+    CTRL --> GUARD --> SVC
+    SVC --> PG & DL
+```
+
+### Admin API Endpoints
+
+| Method | Endpoint | Description | Guard |
+|--------|----------|-------------|-------|
+| `GET` | `/api/admin/analytics/summary` | Dashboard KPIs, trends, aggregations | ClerkAuth + Admin |
+| `GET` | `/api/admin/users` | Paginated user list with search | ClerkAuth + Admin |
+| `POST` | `/api/admin/users/:id/toggle-plan` | Change user's org plan | ClerkAuth + Admin |
+
+### AdminGuard
+
+The `AdminGuard` verifies the requesting user has an `ADMIN` or `OWNER` role in the database:
+
+```mermaid
+flowchart TD
+    REQ[Request] --> JWT["Extract clerkId<br/>from JWT"]
+    JWT --> LOOKUP["Query User by clerkId"]
+    LOOKUP --> CHECK{"role === ADMIN<br/>or OWNER?"}
+    CHECK -->|Yes| ATTACH["Attach adminUser context"]
+    ATTACH --> CTRL["Proceed to controller"]
+    CHECK -->|No| DENY["403 Forbidden"]
+```
+
+### Dashboard KPIs
+
+The `AdminService.getSummary()` aggregates data via 10 parallel queries:
+
+| KPI | Source |
+|-----|--------|
+| Total users | `User.count()` |
+| Total organizations | `Organization.count()` |
+| Total simulations | `Calculation.count()` |
+| Data lake entries | `MarketAnalytic.count()` |
+| Organizations by plan | `Organization.groupBy(planId)` |
+| Estimated MRR | `sum(plan.price * org.count)` |
+| Simulations (30 days) | `Calculation.count(createdAt >= -30d)` |
+| Top countries | `MarketAnalytic.groupBy(countryCode)` |
+| Top investment types | `MarketAnalytic.groupBy(investmentType)` |
+| 30-day simulation trend | Raw SQL: `GROUP BY DATE(created_at)` |
+
+### Admin Frontend
+
+| View | Component | Features |
+|------|-----------|----------|
+| **Dashboard** | `admin/page.tsx` | 4 KPI cards, AreaChart (30d trend), PieChart (plan distribution), BarChart (investment types), country progress bars |
+| **Users** | `admin/users/page.tsx` | Searchable DataTable, plan badge colors, role indicators, plan change dropdown per row |
+
+---
+
+## AI/ML Pipeline
+
+The platform includes an AI-readiness pipeline that exports the MarketAnalytic data lake to JSONL format for fine-tuning language models on green tax advisory.
+
+### Export Script
+
+```bash
+npx tsx scripts/export-analytics.ts --output analytics.jsonl --limit 10000 --batch-size 500
+```
+
+### JSONL Record Format
+
+Each record produces a structured prompt/completion pair:
+
+```json
+{
+  "prompt": "Green tax analysis for country FR, sector MANUFACTURING, investment SOLAR, amount 150000 EUR",
+  "completion": "Estimated grant: 12000 EUR. Investment type: SOLAR. CO2 impact: 45.2 tonnes.",
+  "metadata": {
+    "id": "uuid",
+    "countryCode": "FR",
+    "sector": "MANUFACTURING",
+    "investmentType": "SOLAR",
+    "amount": 150000,
+    "estimatedGrant": 12000,
+    "co2Tonnes": 45.2,
+    "createdAt": "2026-02-10T10:00:00Z"
+  }
+}
+```
+
+### Pipeline Architecture
+
+```mermaid
+flowchart LR
+    SIM["Tax Simulations"] -->|automatic| DL["MarketAnalytic<br/>Data Lake"]
+    DL -->|batch export| JSONL["analytics.jsonl"]
+    JSONL -->|fine-tuning| MODEL["LLM Fine-tune<br/>OpenAI / Vertex AI"]
+    MODEL -->|inference| ADVISOR["Green Tax<br/>AI Advisor"]
+
+    style SIM fill:#e8f5e9
+    style DL fill:#e3f2fd
+    style JSONL fill:#fff3e0
+    style MODEL fill:#f3e5f5
+    style ADVISOR fill:#fce4ec
+```
+
+The export uses cursor-based pagination with configurable batch sizes to handle large datasets without memory issues.
 
 ---
 
@@ -577,8 +817,11 @@ flowchart LR
     MEMO --> DISPATCH["simulateLocally(params)"]
     DISPATCH -->|"LU"| LU_CLIENT["simulateLuxembourg()"]
     DISPATCH -->|"FR"| FR_CLIENT["simulateFrance()"]
-    LU_CLIENT --> ITEMS["LineItem[]"]
-    FR_CLIENT --> ITEMS
+    DISPATCH -->|"DE"| DE_CLIENT["simulateGermany()"]
+    DISPATCH -->|"BE"| BE_CLIENT["simulateBelgium()"]
+    DISPATCH -->|"ES"| ES_CLIENT["simulateSpain()"]
+    DISPATCH -->|"PT"| PT_CLIENT["simulatePortugal()"]
+    LU_CLIENT & FR_CLIENT & DE_CLIENT & BE_CLIENT & ES_CLIENT & PT_CLIENT --> ITEMS["LineItem[]"]
     ITEMS --> CARD["ResultCard renders<br/>instantly"]
 ```
 
@@ -607,13 +850,12 @@ flowchart TD
 
 ### Country Branding
 
-| Element | Luxembourg | France |
-|---------|-----------|--------|
-| Header BG | `#1A4D8F` (blue) | `#002395` (bleu) |
-| Accent | `#D71A28` (red) | `#ED2939` (rouge) |
-| Flag | Red/White/Blue | Blue/White/Red |
-| Tax color | `#D71A28` | `#ED2939` |
-| Subsidy color | `#1A8D5F` | `#1A8D5F` |
+| Element | Luxembourg | France | Germany | Belgium | Spain | Portugal |
+|---------|-----------|--------|---------|---------|-------|----------|
+| Header BG | `#1A4D8F` | `#002395` | `#000000` | `#000000` | `#AA151B` | `#006600` |
+| Accent | `#D71A28` | `#ED2939` | `#DD0000` | `#FDDA24` | `#F1BF00` | `#FF0000` |
+| Tax color | `#D71A28` | `#ED2939` | `#DD0000` | `#DD0000` | `#AA151B` | `#FF0000` |
+| Subsidy color | `#1A8D5F` | `#1A8D5F` | `#1A8D5F` | `#1A8D5F` | `#1A8D5F` | `#1A8D5F` |
 
 ---
 
